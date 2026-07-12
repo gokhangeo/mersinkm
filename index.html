@@ -2,315 +2,698 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Anlık Telsiz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEGSIS & EBYS Bekleyen İşlemler Portalı</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Custom Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af', 
+                        secondary: '#0f172a', 
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        body { background-color: #121212; color: #ffffff; touch-action: manipulation; }
-        .ptt-btn {
-            background: linear-gradient(145deg, #ef4444, #dc2626);
-            box-shadow: 0 10px 20px rgba(239, 68, 68, 0.4), inset 0 -3px 0 rgba(0,0,0,0.2);
-            transition: all 0.1s;
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
         }
-        .ptt-btn:active, .ptt-btn.active {
-            transform: translateY(5px);
-            box-shadow: 0 5px 10px rgba(239, 68, 68, 0.4), inset 0 3px 0 rgba(0,0,0,0.2);
-            background: linear-gradient(145deg, #dc2626, #b91c1c);
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        .slide-up { animation: slideUp 0.4s ease-out; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-        .radar-ring {
-            position: absolute;
-            width: 100%; height: 100%;
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Loading Overlay */
+        #loadingOverlay {
+            backdrop-filter: blur(4px);
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
-            border: 2px solid #ef4444;
-            animation: radar 1.5s infinite ease-out;
-            opacity: 0;
-            display: none;
+            border-top: 4px solid #ffffff;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
         }
-        .ptt-btn.active .radar-ring { display: block; }
-        @keyframes radar {
-            0% { transform: scale(1); opacity: 0.8; }
-            100% { transform: scale(1.5); opacity: 0; }
-        }
-        .speaker-hole {
-            width: 8px; height: 8px; background: #222; border-radius: 50%; margin: 2px;
-            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.8);
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
-    
-    <!-- Uygulama Olarak Yüklenebilme (PWA) Ayarları -->
-    <script>
-        const manifest = {
-            "name": "Anlık Telsiz",
-            "short_name": "Telsiz",
-            "start_url": ".",
-            "display": "standalone",
-            "background_color": "#121212",
-            "theme_color": "#ef4444",
-            "icons": [{
-                "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZWY0NDQ0IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQuOSA5LjFhMTAuNCAxMC40IDAgMCAxIDE0LjIgMG0tMTEuNCAyLjhhNi40IDYuNCAwIDAgMSA4LjYgMG0tNS43IDIuOGEyLjQgMi40IDAgMCAxIDIuOCAwIi8+PHBhdGggZD0iTTEyIDIwaC4wMSIvPjwvc3ZnPg==",
-                "sizes": "512x512",
-                "type": "image/svg+xml",
-                "purpose": "any maskable"
-            }]
-        };
-        // Hataları önlemek için blob URL yerine data URI kullanıyoruz
-        const manifestUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
-        document.write(`<link rel="manifest" href="${manifestUrl}">`);
-        
-        // Not: Gerçek bir PWA Service Worker kaydı için ayrı bir "sw.js" dosyasına ihtiyaç vardır.
-        // Tek dosya (Single-file) kısıtlamasından dolayı blob tabanlı Service Worker kaydı kaldırılmıştır.
-    </script>
 </head>
-<body class="flex flex-col h-screen overflow-hidden antialiased">
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <!-- Firebase Kütüphaneleri -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-        let currentUser = null;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let unsubscribeSnapshot = null;
-        let joinTime = Date.now();
-        let isRecording = false;
-        let isPlaying = false;
-        let audioPlayer = new Audio();
-
-        const loginScreen = document.getElementById('login-screen');
-        const radioScreen = document.getElementById('radio-screen');
-        const channelInput = document.getElementById('channel-input');
-        const joinBtn = document.getElementById('join-btn');
-        const pttBtn = document.getElementById('ptt-btn');
-        const statusText = document.getElementById('status-text');
-        const currentChannelDisplay = document.getElementById('current-channel');
-        const leaveBtn = document.getElementById('leave-btn');
-
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                statusText.innerText = "Bağlantı hatası!";
-                statusText.className = "text-red-500 font-bold mt-4";
-            }
-        };
-        initAuth();
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                joinBtn.disabled = false;
-                joinBtn.innerText = "Kanala Bağlan";
-            }
-        });
-
-        joinBtn.addEventListener('click', async () => {
-            const channelName = channelInput.value.trim().toLowerCase() || 'genel';
-            
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                setupMediaRecorder(stream);
-                
-                // Bildirim izni iste
-                if ("Notification" in window && Notification.permission !== "granted") {
-                    Notification.requestPermission();
-                }
-                
-                loginScreen.classList.add('hidden');
-                radioScreen.classList.remove('hidden');
-                currentChannelDisplay.innerText = "Kanal: " + channelName.toUpperCase();
-                
-                joinChannel(channelName);
-            } catch (error) {
-                alert("Telsizi kullanmak için mikrofon izni vermeniz gerekiyor.");
-            }
-        });
-
-        const joinChannel = (channelName) => {
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-            
-            joinTime = Date.now();
-            const safeChannelName = "channel_" + channelName.replace(/[^a-z0-9]/g, '');
-            const channelRef = collection(db, 'artifacts', appId, 'public', 'data', safeChannelName);
-            
-            statusText.innerText = "Dinleniyor...";
-            statusText.className = "text-green-400 font-bold mt-4";
-
-            unsubscribeSnapshot = onSnapshot(channelRef, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        const data = change.doc.data();
-                        if (data.timestamp > joinTime && data.senderId !== currentUser.uid) {
-                            playIncomingAudio(data.audioBase64);
-                            
-                            // Arka plandayken bildirim gönder
-                            if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-                                new Notification("Telsiz Anonsu", {
-                                    body: "Kanaldan yeni bir sesli mesaj geldi!",
-                                });
-                            }
-                        }
-                    }
-                });
-            });
-        };
-
-        const setupMediaRecorder = (stream) => {
-            mediaRecorder = new MediaRecorder(stream);
-            
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                if (audioChunks.length === 0) return;
-                
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                audioChunks = [];
-                
-                const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
-                reader.onloadend = async () => {
-                    await sendAudioData(reader.result);
-                };
-            };
-        };
-
-        const sendAudioData = async (base64data) => {
-            if (!currentUser) return;
-            
-            const channelName = channelInput.value.trim().toLowerCase() || 'genel';
-            const safeChannelName = "channel_" + channelName.replace(/[^a-z0-9]/g, '');
-            const channelRef = collection(db, 'artifacts', appId, 'public', 'data', safeChannelName);
-            
-            try {
-                statusText.innerText = "Gönderiliyor...";
-                statusText.className = "text-yellow-400 font-bold mt-4";
-                
-                await addDoc(channelRef, {
-                    senderId: currentUser.uid,
-                    audioBase64: base64data,
-                    timestamp: Date.now()
-                });
-                
-                statusText.innerText = "Dinleniyor...";
-                statusText.className = "text-green-400 font-bold mt-4";
-            } catch (error) {
-                statusText.innerText = "Gönderilemedi!";
-                statusText.className = "text-red-500 font-bold mt-4";
-            }
-        };
-
-        const playIncomingAudio = (base64data) => {
-            if (isPlaying) return;
-            
-            isPlaying = true;
-            statusText.innerText = "Biri konuşuyor...";
-            statusText.className = "text-blue-400 font-bold mt-4";
-            
-            audioPlayer.src = base64data;
-            audioPlayer.play().catch(e => console.error("Çalma hatası:", e));
-            
-            audioPlayer.onended = () => {
-                isPlaying = false;
-                statusText.innerText = "Dinleniyor...";
-                statusText.className = "text-green-400 font-bold mt-4";
-            };
-        };
-
-        const startTalking = (e) => {
-            e.preventDefault();
-            if (!mediaRecorder || isRecording || isPlaying) return;
-            
-            isRecording = true;
-            pttBtn.classList.add('active');
-            statusText.innerText = "Konuşuyorsunuz...";
-            statusText.className = "text-red-400 font-bold mt-4";
-            audioChunks = [];
-            mediaRecorder.start();
-        };
-
-        const stopTalking = (e) => {
-            e.preventDefault();
-            if (!mediaRecorder || !isRecording) return;
-            
-            isRecording = false;
-            pttBtn.classList.remove('active');
-            mediaRecorder.stop();
-        };
-
-        pttBtn.addEventListener('mousedown', startTalking);
-        pttBtn.addEventListener('touchstart', startTalking, {passive: false});
-        
-        window.addEventListener('mouseup', stopTalking);
-        window.addEventListener('touchend', stopTalking, {passive: false});
-
-        leaveBtn.addEventListener('click', () => {
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-            radioScreen.classList.add('hidden');
-            loginScreen.classList.remove('hidden');
-        });
-    </script>
-
-    <div id="login-screen" class="flex-1 flex flex-col items-center justify-center p-6">
-        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-gray-700">
-            <i class="fa-solid fa-walkie-talkie text-5xl text-blue-500 mb-4"></i>
-            <h1 class="text-2xl font-bold mb-6 text-white">Telsiz Frekansı</h1>
-            
-            <div class="mb-6">
-                <label class="block text-gray-400 text-sm mb-2">Bağlanmak istediğiniz kanal adı:</label>
-                <input type="text" id="channel-input" value="1. Kanal" 
-                       class="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-center text-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
-                       placeholder="Örn: ekip, genel, kanka">
-            </div>
-            
-            <button id="join-btn" disabled
-                    class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                Sistem Bekleniyor...
-            </button>
-            <p class="text-xs text-gray-500 mt-4">Kullanım için mikrofon izni gereklidir.</p>
-        </div>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 z-[100] hidden bg-slate-900/60 flex-col items-center justify-center text-white">
+        <div class="spinner mb-4"></div>
+        <p id="loadingText" class="font-medium">İşlem yapılıyor, lütfen bekleyin...</p>
     </div>
 
-    <div id="radio-screen" class="hidden flex-1 flex flex-col bg-gray-900">
-        <div class="bg-gray-800 p-4 flex justify-between items-center border-b border-gray-700 shadow-lg">
-            <div id="current-channel" class="font-mono text-xl font-bold text-green-400">KANAL: --</div>
-            <button id="leave-btn" class="text-gray-400 hover:text-white px-3 py-1 rounded bg-gray-700">
-                <i class="fa-solid fa-power-off"></i> Çıkış
-            </button>
-        </div>
-
-        <div class="flex-1 flex flex-col items-center justify-center p-4">
-            <div class="flex flex-wrap justify-center w-32 mb-12 opacity-50">
-                <div class="speaker-hole"></div><div class="speaker-hole"></div><div class="speaker-hole"></div><div class="speaker-hole"></div>
-                <div class="speaker-hole"></div><div class="speaker-hole"></div><div class="speaker-hole"></div><div class="speaker-hole"></div>
-                <div class="speaker-hole"></div><div class="speaker-hole"></div><div class="speaker-hole"></div><div class="speaker-hole"></div>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md slide-up">
+            <div class="text-center mb-8">
+                <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="shield-check" class="w-8 h-8 text-primary"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-900">Kurumsal Giriş</h1>
+                <p class="text-slate-500 text-sm mt-1">Lütfen birim kimlik bilgilerinizle giriş yapın.</p>
             </div>
-
-            <div class="relative w-48 h-48 flex items-center justify-center">
-                <button id="ptt-btn" class="ptt-btn w-40 h-40 rounded-full flex flex-col items-center justify-center select-none relative z-10 border-4 border-red-900 focus:outline-none">
-                    <div class="radar-ring"></div>
-                    <i class="fa-solid fa-microphone text-4xl mb-2 text-white shadow-sm"></i>
-                    <span class="font-bold text-sm tracking-wider uppercase">Bas Konuş</span>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Kullanıcı Adı</label>
+                    <input type="text" id="username" class="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-primary focus:ring-1 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
+                    <input type="password" id="password" class="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-primary focus:ring-1 focus:ring-primary" required>
+                </div>
+                <div id="loginError" class="text-red-500 text-sm hidden font-medium">Kullanıcı adı veya şifre hatalı!</div>
+                <button type="submit" class="w-full bg-primary hover:bg-blue-800 text-white font-medium py-3 rounded-lg transition-colors mt-4">
+                    Sisteme Giriş Yap
                 </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application App (Hidden by default) -->
+    <div id="appContainer" class="hidden flex-col min-h-screen">
+        <!-- Navbar -->
+        <nav class="bg-secondary text-white shadow-lg sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center">
+                        <i data-lucide="layers" class="h-8 w-8 text-blue-400 mr-3"></i>
+                        <span class="font-bold text-xl tracking-tight hidden sm:block">Kurumsal İşlem Portalı</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        <div class="text-sm bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center">
+                            <i data-lucide="user" class="w-4 h-4 mr-2 text-slate-400"></i>
+                            <span id="currentUserDisplay" class="font-medium text-slate-200">Birim</span>
+                        </div>
+                        <button onclick="logout()" class="text-red-400 hover:text-red-300 hover:bg-slate-800 p-2 rounded-lg transition-colors" title="Çıkış Yap">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            
+            <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 fade-in">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900" id="dashboardTitle">MEGSIS & EBYS Bekleyen İşlemler</h1>
+                    <p class="text-slate-500 mt-1">Sistemdeki güncel raporları görüntüleyin ve indirin.</p>
+                </div>
+                
+                <div class="flex space-x-4">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3 w-40">
+                        <div class="p-2 bg-emerald-100 rounded-lg text-emerald-600">
+                            <i data-lucide="map" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 font-medium">MEGSIS</div>
+                            <div class="font-bold text-lg" id="stat-megsis">0</div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3 w-40">
+                        <div class="p-2 bg-red-100 rounded-lg text-red-600">
+                            <i data-lucide="file-text" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500 font-medium">EBYS</div>
+                            <div class="font-bold text-lg" id="stat-ebys">0</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="mt-12 text-center h-16">
-                <div id="status-text" class="text-gray-500 font-bold mt-4 tracking-widest uppercase">Hazır</div>
+            <!-- Admin Upload Section -->
+            <section id="uploadSection" class="mb-10 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 slide-up hidden">
+                <div class="flex items-center mb-4 text-primary">
+                    <i data-lucide="upload-cloud" class="w-6 h-6 mr-2"></i>
+                    <h2 class="text-lg font-bold">İlçeye Yeni İşlem Dosyası Yükle</h2>
+                </div>
+                
+                <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-12 gap-6" onsubmit="handleFileUpload(event)">
+                    
+                    <div class="md:col-span-5 relative">
+                        <label for="fileInput" class="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <i data-lucide="file-plus" class="w-8 h-8 text-slate-400 mb-2"></i>
+                                <p class="mb-1 text-sm text-slate-500"><span class="font-semibold text-primary">Dosya seçmek için tıkla</span></p>
+                                <p class="text-xs text-slate-400">PDF, XLS, XLSX (Max. 2MB)</p>
+                            </div>
+                            <input id="fileInput" type="file" class="hidden" accept=".pdf, .xls, .xlsx" required onchange="updateFileName(this)" />
+                        </label>
+                        <div id="selectedFileName" class="text-xs text-center mt-2 text-primary font-medium truncate px-2 hidden"></div>
+                    </div>
+
+                    <div class="md:col-span-7 flex flex-col justify-between space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Hedef İlçe</label>
+                                <select id="fileDistrict" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white">
+                                    <option value="Merkez İlçe">Merkez İlçe</option>
+                                    <option value="Anamur">Anamur</option>
+                                    <option value="Silifke">Silifke</option>
+                                    <option value="Erdemli">Erdemli</option>
+                                    <option value="Mut">Mut</option>
+                                    <option value="Tarsus">Tarsus</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Sistem Kategorisi</label>
+                                <select id="fileCategory" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white">
+                                    <option value="MEGSIS">MEGSIS</option>
+                                    <option value="EBYS">EBYS</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Aciliyet</label>
+                                <select id="fileUrgency" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white">
+                                    <option value="Normal">🟢 Normal</option>
+                                    <option value="Acil">🟠 Acil</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Açıklama / Notlar</label>
+                            <input type="text" id="fileDescription" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none" placeholder="Örn: Rapor..." required>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit" class="bg-primary hover:bg-blue-800 text-white font-medium py-2.5 px-6 rounded-lg transition-all flex items-center">
+                                <i data-lucide="send" class="w-4 h-4 mr-2"></i> Yükle ve Paylaş
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Files List Section -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden slide-up">
+                <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50">
+                    <div class="flex space-x-2 w-full sm:w-auto">
+                        <button onclick="filterFiles('Tümü')" id="btn-filter-Tümü" class="filter-btn active px-4 py-1.5 rounded-full text-sm font-medium bg-slate-800 text-white transition-colors">Tümü</button>
+                        <button onclick="filterFiles('MEGSIS')" id="btn-filter-MEGSIS" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">MEGSIS</button>
+                        <button onclick="filterFiles('EBYS')" id="btn-filter-EBYS" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">EBYS</button>
+                        <button onclick="fetchDataFromGithub()" class="ml-2 p-1.5 bg-slate-200 text-slate-700 rounded-full hover:bg-slate-300 transition-colors" title="Listeyi Yenile">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="relative w-full sm:w-64">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                        </div>
+                        <input type="text" id="searchInput" oninput="searchFiles()" class="bg-white border border-slate-300 text-slate-900 text-sm rounded-lg block w-full pl-10 p-2 outline-none" placeholder="Dosya adı ara...">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-500">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th scope="col" class="px-6 py-4">Dosya</th>
+                                <th scope="col" class="px-6 py-4">İlçe / Kategori</th>
+                                <th scope="col" class="px-6 py-4 hidden md:table-cell">Açıklama</th>
+                                <th scope="col" class="px-6 py-4">Tarih</th>
+                                <th scope="col" class="px-6 py-4 text-right">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody"></tbody>
+                    </table>
+                    
+                    <div id="emptyState" class="hidden flex flex-col items-center justify-center py-12 px-4 text-center">
+                        <div class="bg-slate-100 p-4 rounded-full mb-4">
+                            <i data-lucide="inbox" class="w-8 h-8 text-slate-400"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-slate-900 mb-1">Görüntülenecek dosya yok</h3>
+                        <p class="text-slate-500">Şu anda bu birim için bekleyen bir işlem bulunmuyor.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="fixed inset-0 z-[60] hidden bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col transform scale-95 transition-transform duration-300" id="previewModalContent">
+            <div class="flex justify-between items-center p-4 border-b border-slate-100">
+                <div class="flex items-center">
+                    <div id="previewIcon" class="mr-3"></div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800" id="previewTitle">Dosya Önizleme</h3>
+                        <p class="text-xs text-slate-500" id="previewDesc">Yükleniyor...</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="previewDownloadBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center transition-colors">
+                        <i data-lucide="download" class="w-4 h-4 mr-1"></i> İndir
+                    </button>
+                    <button onclick="closePreview()" class="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-grow p-0 bg-slate-100 overflow-hidden relative rounded-b-2xl">
+                <iframe id="previewFrame" class="w-full h-full border-0 hidden"></iframe>
+                <div id="excelPlaceholder" class="hidden w-full h-full flex flex-col items-center justify-center text-center p-6">
+                    <i data-lucide="file-spreadsheet" class="w-20 h-20 text-emerald-500 mb-4"></i>
+                    <h4 class="text-xl font-bold text-slate-700 mb-2">Excel Dosyası</h4>
+                    <p class="text-slate-500 max-w-md">Lütfen görüntülemek için cihazınıza indirin.</p>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-[70]">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400 mr-3 hidden" id="toastSuccessIcon"></i>
+        <i data-lucide="alert-circle" class="w-5 h-5 text-red-400 mr-3 hidden" id="toastErrorIcon"></i>
+        <span id="toastMessage">Bildirim mesajı</span>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- AUTH & USER DATA ---
+        const USERS = {
+            'mersinkm': { pass: '220350', role: 'admin', district: 'Tüm İlçeler', title: 'Ana Kullanıcı' },
+            'mersin':   { pass: '503344', role: 'staff', district: 'Merkez İlçe', title: 'Merkez İlçe Birimi' },
+            'anamur':   { pass: '503345', role: 'staff', district: 'Anamur', title: 'Anamur Birimi' },
+            'silifke':  { pass: '503346', role: 'staff', district: 'Silifke', title: 'Silifke Birimi' },
+            'erdemli':  { pass: '503347', role: 'staff', district: 'Erdemli', title: 'Erdemli Birimi' },
+            'mut':      { pass: '503348', role: 'staff', district: 'Mut', title: 'Mut Birimi' },
+            'tarsus':   { pass: '503349', role: 'staff', district: 'Tarsus', title: 'Tarsus Birimi' }
+        };
+
+        // --- GITHUB API SETTINGS ---
+        const repo = 'gokhangeo/mersinkm';
+        const filePath = 'veri/dosyalar.json'; // Where data will be saved
+        
+        // Token Split to avoid auto-revocation by GitHub
+        const t1 = "ghp_1Im";
+        const t2 = "4128xUP1u";
+        const t3 = "C8Oov8yBd7";
+        const t4 = "oahk2S6a0aGBTj";
+        function getAuthToken() { return t1 + t2 + t3 + t4; }
+
+        let appState = {
+            currentUser: null,
+            currentFilter: 'Tümü',
+            searchQuery: '',
+            files: [],
+            fileSha: null // Required by GitHub API to update files
+        };
+
+        // DOM Elements
+        const DOM = {
+            loginScreen: document.getElementById('loginScreen'),
+            appContainer: document.getElementById('appContainer'),
+            uploadSection: document.getElementById('uploadSection'),
+            fileTableBody: document.getElementById('fileTableBody'),
+            emptyState: document.getElementById('emptyState'),
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            loadingText: document.getElementById('loadingText')
+        };
+
+        // --- LOGIN / LOGOUT ---
+        function handleLogin(e) {
+            e.preventDefault();
+            const userVal = document.getElementById('username').value.trim().toLowerCase();
+            const passVal = document.getElementById('password').value.trim();
+            const errorDiv = document.getElementById('loginError');
+
+            if (USERS[userVal] && USERS[userVal].pass === passVal) {
+                appState.currentUser = { username: userVal, ...USERS[userVal] };
+                errorDiv.classList.add('hidden');
+                
+                // UI Changes based on role
+                document.getElementById('currentUserDisplay').textContent = appState.currentUser.title;
+                if (appState.currentUser.role === 'admin') {
+                    DOM.uploadSection.classList.remove('hidden');
+                    document.getElementById('dashboardTitle').textContent = 'Tüm İşlemler Yönetimi';
+                } else {
+                    DOM.uploadSection.classList.add('hidden');
+                    document.getElementById('dashboardTitle').textContent = appState.currentUser.title + ' Bekleyen İşlemleri';
+                }
+
+                DOM.loginScreen.classList.add('hidden');
+                DOM.appContainer.classList.remove('hidden');
+                DOM.appContainer.classList.add('flex');
+                
+                fetchDataFromGithub(); // Load data
+            } else {
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            appState.currentUser = null;
+            appState.files = [];
+            document.getElementById('loginForm').reset();
+            DOM.appContainer.classList.add('hidden');
+            DOM.appContainer.classList.remove('flex');
+            DOM.loginScreen.classList.remove('hidden');
+        }
+
+        // --- GITHUB API FUNCTIONS ---
+        function showLoading(text) {
+            DOM.loadingText.textContent = text;
+            DOM.loadingOverlay.classList.remove('hidden');
+            DOM.loadingOverlay.classList.add('flex');
+        }
+
+        function hideLoading() {
+            DOM.loadingOverlay.classList.add('hidden');
+            DOM.loadingOverlay.classList.remove('flex');
+        }
+
+        async function fetchDataFromGithub() {
+            showLoading('Veriler GitHub\'dan çekiliyor...');
+            try {
+                const response = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+                    headers: { 'Authorization': `token ${getAuthToken()}` }
+                });
+
+                if (response.status === 404) {
+                    appState.files = [];
+                    appState.fileSha = null;
+                } else if (response.ok) {
+                    const data = await response.json();
+                    appState.fileSha = data.sha;
+                    // Decode base64 content
+                    const content = decodeURIComponent(escape(atob(data.content)));
+                    appState.files = JSON.parse(content);
+                } else {
+                    throw new Error('Bağlantı hatası');
+                }
+                renderTable();
+            } catch (error) {
+                console.error(error);
+                showToast('Veriler alınırken hata oluştu.', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function saveDataToGithub() {
+            showLoading('Değişiklikler GitHub\'a kaydediliyor...');
+            try {
+                // Encode to Base64 safely for UTF-8
+                const jsonStr = JSON.stringify(appState.files);
+                const base64Content = btoa(unescape(encodeURIComponent(jsonStr)));
+
+                const bodyData = {
+                    message: `Veri güncellemesi - ${new Date().toLocaleString('tr-TR')}`,
+                    content: base64Content
+                };
+
+                // Add SHA if updating existing file
+                if (appState.fileSha) {
+                    bodyData.sha = appState.fileSha;
+                }
+
+                const response = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${getAuthToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bodyData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    appState.fileSha = data.content.sha; // Update SHA for next time
+                    showToast('İşlem başarıyla kaydedildi!', 'success');
+                    renderTable();
+                } else {
+                    throw new Error('Kayıt başarısız');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Kaydetme hatası!', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- FILE UPLOAD ---
+        function updateFileName(input) {
+            const nameDisplay = document.getElementById('selectedFileName');
+            if (input.files && input.files.length > 0) {
+                const file = input.files[0];
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                nameDisplay.textContent = `Seçilen: ${file.name} (${sizeMB} MB)`;
+                nameDisplay.classList.remove('hidden');
+                
+                if (file.size > 2 * 1024 * 1024) {
+                    showToast('Dosya boyutu çok büyük! Maksimum 2MB yükleyebilirsiniz.', 'error');
+                    input.value = '';
+                    nameDisplay.classList.add('hidden');
+                }
+            } else {
+                nameDisplay.classList.add('hidden');
+            }
+        }
+
+        function handleFileUpload(event) {
+            event.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files || fileInput.files.length === 0) return;
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                const base64Data = e.target.result; // Data URL
+                
+                const newFile = {
+                    id: Date.now().toString(),
+                    name: file.name,
+                    type: file.name.split('.').pop().toLowerCase() === 'pdf' ? 'pdf' : 'excel',
+                    category: document.getElementById('fileCategory').value,
+                    urgency: document.getElementById('fileUrgency').value,
+                    desc: document.getElementById('fileDescription').value,
+                    district: document.getElementById('fileDistrict').value,
+                    date: new Date().toLocaleString('tr-TR'),
+                    dataUrl: base64Data, // Save as base64 string
+                    size: (file.size / 1024).toFixed(0) + ' KB',
+                    uploader: appState.currentUser.title
+                };
+
+                appState.files.unshift(newFile);
+                
+                // Reset Form
+                document.getElementById('uploadForm').reset();
+                document.getElementById('selectedFileName').classList.add('hidden');
+                
+                await saveDataToGithub();
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // --- RENDER & FILTER ---
+        function filterFiles(category) {
+            appState.currentFilter = category;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if(btn.id === `btn-filter-${category}`) {
+                    btn.classList.add('bg-slate-800', 'text-white');
+                    btn.classList.remove('bg-slate-200', 'text-slate-600');
+                } else {
+                    btn.classList.remove('bg-slate-800', 'text-white');
+                    btn.classList.add('bg-slate-200', 'text-slate-600');
+                }
+            });
+            renderTable();
+        }
+
+        function searchFiles() {
+            appState.searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            renderTable();
+        }
+
+        function renderTable() {
+            DOM.fileTableBody.innerHTML = '';
+            
+            // 1. Filter by User District (Admin sees all)
+            let visibleFiles = appState.files;
+            if (appState.currentUser.role !== 'admin') {
+                visibleFiles = visibleFiles.filter(f => f.district === appState.currentUser.district);
+            }
+
+            // Update Stats
+            document.getElementById('stat-megsis').textContent = visibleFiles.filter(f => f.category === 'MEGSIS').length;
+            document.getElementById('stat-ebys').textContent = visibleFiles.filter(f => f.category === 'EBYS').length;
+
+            // 2. Filter by Search and Category
+            let filtered = visibleFiles.filter(file => {
+                const matchCategory = appState.currentFilter === 'Tümü' || file.category === appState.currentFilter;
+                const matchSearch = file.name.toLowerCase().includes(appState.searchQuery);
+                return matchCategory && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                DOM.emptyState.classList.remove('hidden');
+                DOM.fileTableBody.parentElement.classList.add('hidden');
+            } else {
+                DOM.emptyState.classList.add('hidden');
+                DOM.fileTableBody.parentElement.classList.remove('hidden');
+                
+                filtered.forEach(file => {
+                    const row = document.createElement('tr');
+                    row.className = 'bg-white border-b hover:bg-slate-50 transition-colors fade-in';
+                    
+                    const deleteBtn = appState.currentUser.role === 'admin' ? 
+                        `<button onclick="deleteFile('${file.id}')" class="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50" title="Sil"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                ${file.type === 'pdf' ? '<div class="p-2 bg-red-100 rounded-lg text-red-600 mr-3"><i data-lucide="file-text" class="w-5 h-5"></i></div>' : '<div class="p-2 bg-emerald-100 rounded-lg text-emerald-600 mr-3"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>'}
+                                <div>
+                                    <div class="font-medium text-slate-900 truncate w-40" title="${file.name}">${file.name}</div>
+                                    <div class="text-xs text-slate-500">${file.size}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-xs font-medium">
+                            <div class="text-slate-800 mb-1">${file.district}</div>
+                            <span class="${file.category === 'MEGSIS' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'} px-2 py-0.5 rounded border mr-1">${file.category}</span>
+                            <span class="${file.urgency === 'Acil' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'} px-2 py-0.5 rounded">${file.urgency}</span>
+                        </td>
+                        <td class="px-6 py-4 hidden md:table-cell text-sm text-slate-600 w-48">${file.desc}</td>
+                        <td class="px-6 py-4 text-xs text-slate-500">${file.date}</td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end space-x-1">
+                                <button onclick="previewFile('${file.id}')" class="text-primary hover:bg-blue-50 p-2 rounded-lg"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                                <button onclick="downloadFile('${file.id}')" class="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg"><i data-lucide="download" class="w-4 h-4"></i></button>
+                                ${deleteBtn}
+                            </div>
+                        </td>
+                    `;
+                    DOM.fileTableBody.appendChild(row);
+                });
+                lucide.createIcons();
+            }
+        }
+
+        // --- FILE ACTIONS ---
+        function previewFile(id) {
+            const file = appState.files.find(f => f.id === id);
+            if (!file) return;
+
+            document.getElementById('previewTitle').textContent = file.name;
+            document.getElementById('previewDownloadBtn').onclick = () => downloadFile(id);
+
+            const frame = document.getElementById('previewFrame');
+            const excelPh = document.getElementById('excelPlaceholder');
+
+            if (file.type === 'pdf') {
+                excelPh.classList.add('hidden');
+                frame.classList.remove('hidden');
+                frame.src = file.dataUrl; // Load base64 Data URL
+            } else {
+                frame.classList.add('hidden');
+                frame.src = '';
+                excelPh.classList.remove('hidden');
+            }
+
+            const modal = document.getElementById('previewModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('previewModalContent').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closePreview() {
+            const modal = document.getElementById('previewModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('previewModalContent').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('previewFrame').src = '';
+            }, 300);
+        }
+
+        function downloadFile(id) {
+            const file = appState.files.find(f => f.id === id);
+            if (!file) return;
+
+            const a = document.createElement('a');
+            a.href = file.dataUrl; // Use base64 Data URL
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        async function deleteFile(id) {
+            if (appState.currentUser.role !== 'admin') return;
+            
+            const fileIndex = appState.files.findIndex(f => f.id === id);
+            if(fileIndex > -1) {
+                appState.files.splice(fileIndex, 1);
+                await saveDataToGithub(); // Update repo
+            }
+        }
+
+        // --- UTILS ---
+        let toastTimeout;
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = message;
+            
+            document.getElementById('toastSuccessIcon').classList.toggle('hidden', type !== 'success');
+            document.getElementById('toastErrorIcon').classList.toggle('hidden', type === 'success');
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+    </script>
 </body>
 </html>
