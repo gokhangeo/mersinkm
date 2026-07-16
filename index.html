@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MEGSIS & EBYS Bekleyen İşlemler Portalı</title>
+    <title>MEGSIS & EBYS Birim Klasörleri Portalı</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -88,7 +88,7 @@
                     <i data-lucide="shield-check" class="w-8 h-8 text-primary"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-slate-900">Kurumsal Giriş</h1>
-                <p class="text-slate-500 text-sm mt-1">Lütfen birim kimlik bilgilerinizle giriş yapın.</p>
+                <p class="text-slate-500 text-sm mt-1">Ana kullanıcı veya birim klasörü hesabıyla giriş yapın.</p>
             </div>
             
             <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
@@ -99,6 +99,18 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
                     <input type="password" id="password" class="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-primary focus:ring-1 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Birim Klasörü</label>
+                    <select id="loginDistrict" class="w-full border border-slate-300 rounded-lg p-3 outline-none bg-white focus:border-primary focus:ring-1 focus:ring-primary">
+                        <option value="Merkez İlçe">Merkez İlçe</option>
+                        <option value="Anamur">Anamur</option>
+                        <option value="Silifke">Silifke</option>
+                        <option value="Erdemli">Erdemli</option>
+                        <option value="Mut">Mut</option>
+                        <option value="Tarsus">Tarsus</option>
+                    </select>
+                    <p class="text-xs text-slate-400 mt-1">Birim hesabıyla girişte görüntülenecek klasörü seçin.</p>
                 </div>
                 <div id="loginError" class="text-red-500 text-sm hidden font-medium">Kullanıcı adı veya şifre hatalı!</div>
                 <button type="submit" class="w-full bg-primary hover:bg-blue-800 text-white font-medium py-3 rounded-lg transition-colors mt-4">
@@ -137,8 +149,8 @@
             
             <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 fade-in">
                 <div>
-                    <h1 class="text-2xl font-bold text-slate-900" id="dashboardTitle">MEGSIS & EBYS Bekleyen İşlemler</h1>
-                    <p class="text-slate-500 mt-1">Sistemdeki güncel raporları görüntüleyin ve indirin.</p>
+                    <h1 class="text-2xl font-bold text-slate-900" id="dashboardTitle">MEGSIS & EBYS Birim Klasörleri</h1>
+                    <p class="text-slate-500 mt-1">Birim klasörlerindeki güncel raporları görüntüleyin ve indirin.</p>
                 </div>
                 
                 <div class="flex space-x-4">
@@ -167,7 +179,7 @@
             <section id="uploadSection" class="mb-10 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 slide-up hidden">
                 <div class="flex items-center mb-4 text-primary">
                     <i data-lucide="upload-cloud" class="w-6 h-6 mr-2"></i>
-                    <h2 class="text-lg font-bold">İlçeye Yeni İşlem Dosyası Yükle</h2>
+                    <h2 class="text-lg font-bold">Birim Klasörüne Yeni İşlem Dosyası Yükle</h2>
                 </div>
                 
                 <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-12 gap-6" onsubmit="handleFileUpload(event)">
@@ -187,7 +199,7 @@
                     <div class="md:col-span-7 flex flex-col justify-between space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Hedef İlçe</label>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Hedef Klasör</label>
                                 <select id="fileDistrict" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white">
                                     <option value="Merkez İlçe">Merkez İlçe</option>
                                     <option value="Anamur">Anamur</option>
@@ -315,15 +327,33 @@
         lucide.createIcons();
 
         // --- AUTH & USER DATA ---
-        const USERS = {
-            'mersinkm': { pass: '220350', role: 'admin', district: 'Tüm İlçeler', title: 'Ana Kullanıcı' },
-            'mersin':   { pass: '503344', role: 'staff', district: 'Merkez İlçe', title: 'Merkez İlçe Birimi' },
-            'anamur':   { pass: '503345', role: 'staff', district: 'Anamur', title: 'Anamur Birimi' },
-            'silifke':  { pass: '503346', role: 'staff', district: 'Silifke', title: 'Silifke Birimi' },
-            'erdemli':  { pass: '503347', role: 'staff', district: 'Erdemli', title: 'Erdemli Birimi' },
-            'mut':      { pass: '503348', role: 'staff', district: 'Mut', title: 'Mut Birimi' },
-            'tarsus':   { pass: '503349', role: 'staff', district: 'Tarsus', title: 'Tarsus Birimi' }
+        const UNIT_FOLDERS = [
+            { value: 'Merkez İlçe', title: 'Merkez İlçe Birimi' },
+            { value: 'Anamur', title: 'Anamur Birimi' },
+            { value: 'Silifke', title: 'Silifke Birimi' },
+            { value: 'Erdemli', title: 'Erdemli Birimi' },
+            { value: 'Mut', title: 'Mut Birimi' },
+            { value: 'Tarsus', title: 'Tarsus Birimi' }
+        ];
+
+        const MAIN_LOGIN = {
+            username: 'mersin',
+            pass: '503344',
+            role: 'admin',
+            district: 'Tüm Klasörler',
+            title: 'Ana Kullanıcı'
         };
+
+        const UNIT_LOGIN = {
+            username: 'mersinkm',
+            pass: '503344',
+            role: 'staff'
+        };
+
+        function getFolderTitle(district) {
+            const folder = UNIT_FOLDERS.find(item => item.value === district);
+            return folder ? folder.title : `${district} Birimi`;
+        }
 
         // --- GITHUB API SETTINGS ---
         const repo = 'gokhangeo/mersinkm';
@@ -355,22 +385,46 @@
             loadingText: document.getElementById('loadingText')
         };
 
-        // --- LOGIN / LOGOUT ---
+        populateFolderSelects();
+
+        function populateFolderSelects() {
+            const options = UNIT_FOLDERS
+                .map(folder => `<option value="${folder.value}">${folder.value}</option>`)
+                .join('');
+            document.getElementById('loginDistrict').innerHTML = options;
+            document.getElementById('fileDistrict').innerHTML = options;
+        }
+
+// --- LOGIN / LOGOUT ---
         function handleLogin(e) {
             e.preventDefault();
             const userVal = document.getElementById('username').value.trim().toLowerCase();
             const passVal = document.getElementById('password').value.trim();
+            const selectedFolder = document.getElementById('loginDistrict').value;
             const errorDiv = document.getElementById('loginError');
 
-            if (USERS[userVal] && USERS[userVal].pass === passVal) {
-                appState.currentUser = { username: userVal, ...USERS[userVal] };
+            let authenticatedUser = null;
+
+            if (userVal === MAIN_LOGIN.username && passVal === MAIN_LOGIN.pass) {
+                authenticatedUser = { username: MAIN_LOGIN.username, ...MAIN_LOGIN };
+            } else if (userVal === UNIT_LOGIN.username && passVal === UNIT_LOGIN.pass) {
+                authenticatedUser = {
+                    username: UNIT_LOGIN.username,
+                    pass: UNIT_LOGIN.pass,
+                    role: UNIT_LOGIN.role,
+                    district: selectedFolder,
+                    title: getFolderTitle(selectedFolder)
+                };
+            }
+
+            if (authenticatedUser) {
+                appState.currentUser = authenticatedUser;
                 errorDiv.classList.add('hidden');
                 
-                // UI Changes based on role
                 document.getElementById('currentUserDisplay').textContent = appState.currentUser.title;
                 if (appState.currentUser.role === 'admin') {
                     DOM.uploadSection.classList.remove('hidden');
-                    document.getElementById('dashboardTitle').textContent = 'Tüm İşlemler Yönetimi';
+                    document.getElementById('dashboardTitle').textContent = 'Birim Klasörleri Yönetimi';
                 } else {
                     DOM.uploadSection.classList.add('hidden');
                     document.getElementById('dashboardTitle').textContent = appState.currentUser.title + ' Bekleyen İşlemleri';
@@ -380,7 +434,7 @@
                 DOM.appContainer.classList.remove('hidden');
                 DOM.appContainer.classList.add('flex');
                 
-                fetchDataFromGithub(); // Load data
+                fetchDataFromGithub();
             } else {
                 errorDiv.classList.remove('hidden');
             }
