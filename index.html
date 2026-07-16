@@ -270,6 +270,7 @@
                                 <th scope="col" class="px-6 py-4">İlçe / Kategori</th>
                                 <th scope="col" class="px-6 py-4 hidden md:table-cell">Açıklama</th>
                                 <th scope="col" class="px-6 py-4">Tarih</th>
+                                <th scope="col" class="px-6 py-4">Görüntülenme</th>
                                 <th scope="col" class="px-6 py-4 text-right">İşlemler</th>
                             </tr>
                         </thead>
@@ -541,8 +542,9 @@
             }
         }
 
-        async function saveDataToGithub() {
-            showLoading('Değişiklikler GitHub\'a kaydediliyor...');
+        async function saveDataToGithub(options = {}) {
+            const { silent = false } = options;
+            if (!silent) showLoading('Değişiklikler GitHub\'a kaydediliyor...');
             try {
                 // Encode to Base64 safely for UTF-8
                 const jsonStr = JSON.stringify(appState.files);
@@ -570,16 +572,18 @@
                 if (response.ok) {
                     const data = await response.json();
                     appState.fileSha = data.content.sha; // Update SHA for next time
-                    showToast('İşlem başarıyla kaydedildi!', 'success');
+                    if (!silent) showToast('İşlem başarıyla kaydedildi!', 'success');
                     renderTable();
+                    return true;
                 } else {
                     throw new Error('Kayıt başarısız');
                 }
             } catch (error) {
                 console.error(error);
                 showToast('Kaydetme hatası!', 'error');
+                return false;
             } finally {
-                hideLoading();
+                if (!silent) hideLoading();
             }
         }
 
@@ -625,7 +629,9 @@
                     date: new Date().toLocaleString('tr-TR'),
                     dataUrl: base64Data, // Save as base64 string
                     size: (file.size / 1024).toFixed(0) + ' KB',
-                    uploader: appState.currentUser.title
+                    uploader: appState.currentUser.title,
+                    viewedAt: null,
+                    viewedBy: null
                 };
 
                 appState.files.unshift(newFile);
@@ -697,6 +703,15 @@
 
                     const safeName = escapeHtml(file.name);
                     const safeDescription = file.desc ? escapeHtml(file.desc) : '<span class="text-slate-400 italic">Açıklama yok</span>';
+                    const viewedStatus = file.viewedAt ? `
+                        <div class="inline-flex items-center text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-1 font-semibold whitespace-nowrap">
+                            <i data-lucide="check-check" class="w-3.5 h-3.5 mr-1"></i> Görüntülendi
+                        </div>
+                        <div class="text-[11px] text-slate-500 mt-1 whitespace-nowrap">${formatViewedAt(file.viewedAt)}</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(file.viewedBy || file.district)}</div>` : `
+                        <div class="inline-flex items-center text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1 font-semibold whitespace-nowrap">
+                            <i data-lucide="clock-3" class="w-3.5 h-3.5 mr-1"></i> Görüntülenmedi
+                        </div>`;
 
                     row.innerHTML = `
                         <td class="px-6 py-4">
@@ -715,6 +730,7 @@
                         </td>
                         <td class="px-6 py-4 hidden md:table-cell text-sm text-slate-600 w-48">${safeDescription}</td>
                         <td class="px-6 py-4 text-xs text-slate-500">${file.date}</td>
+                        <td class="px-6 py-4 text-xs">${viewedStatus}</td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end space-x-1">
                                 <button onclick="previewFile('${file.id}')" class="text-primary hover:bg-blue-50 p-2 rounded-lg"><i data-lucide="eye" class="w-4 h-4"></i></button>
@@ -767,7 +783,10 @@
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 document.getElementById('previewModalContent').classList.remove('scale-95');
-                if (file.type === 'pdf') loadPdf(file.dataUrl);
+                if (file.type === 'pdf') {
+                    loadPdf(file.dataUrl);
+                    markFileAsViewed(file);
+                }
             }, 10);
         }
 
@@ -905,6 +924,24 @@
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            markFileAsViewed(file);
+        }
+
+        async function markFileAsViewed(file) {
+            if (appState.currentUser.role === 'admin' || file.viewedAt) return;
+
+            const previousViewedAt = file.viewedAt;
+            const previousViewedBy = file.viewedBy;
+            file.viewedAt = new Date().toISOString();
+            file.viewedBy = appState.currentUser.title;
+            renderTable();
+
+            const saved = await saveDataToGithub({ silent: true });
+            if (!saved) {
+                file.viewedAt = previousViewedAt;
+                file.viewedBy = previousViewedBy;
+                renderTable();
+            }
         }
 
         function openEditModal(id) {
@@ -974,6 +1011,11 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
+        }
+
+        function formatViewedAt(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? escapeHtml(value) : date.toLocaleString('tr-TR');
         }
 
         let toastTimeout;
