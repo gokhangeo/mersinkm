@@ -226,8 +226,8 @@
                         </div>
                         
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Açıklama / Notlar</label>
-                            <input type="text" id="fileDescription" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none" placeholder="Örn: Rapor..." required>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Açıklama / Notlar <span class="font-normal text-slate-400">(isteğe bağlı)</span></label>
+                            <input type="text" id="fileDescription" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none" placeholder="İsterseniz bir açıklama ekleyin">
                         </div>
 
                         <div class="flex justify-end">
@@ -313,6 +313,38 @@
                     <p class="text-slate-500 max-w-md">Lütfen görüntülemek için cihazınıza indirin.</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Edit File Modal (Admin Only) -->
+    <div id="editModal" class="fixed inset-0 z-[65] hidden bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        <div id="editModalContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300">
+            <div class="flex items-center justify-between p-5 border-b border-slate-100">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Dosya Bilgilerini Düzenle</h3>
+                    <p class="text-xs text-slate-500 mt-1">Dosyanın adı ve isteğe bağlı açıklaması güncellenir.</p>
+                </div>
+                <button type="button" onclick="closeEditModal()" class="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors" aria-label="Düzenleme penceresini kapat">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <form id="editFileForm" class="p-5 space-y-4" onsubmit="saveFileEdits(event)">
+                <input type="hidden" id="editFileId">
+                <div>
+                    <label for="editFileName" class="block text-sm font-medium text-slate-700 mb-1">Dosya Adı</label>
+                    <input type="text" id="editFileName" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label for="editFileDescription" class="block text-sm font-medium text-slate-700 mb-1">Açıklama / Notlar <span class="font-normal text-slate-400">(isteğe bağlı)</span></label>
+                    <textarea id="editFileDescription" rows="3" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none resize-y focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Açıklama boş bırakılabilir"></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">İptal</button>
+                    <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-blue-800 transition-colors flex items-center">
+                        <i data-lucide="save" class="w-4 h-4 mr-2"></i> Değişiklikleri Kaydet
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -568,7 +600,7 @@
                     type: file.name.split('.').pop().toLowerCase() === 'pdf' ? 'pdf' : 'excel',
                     category: document.getElementById('fileCategory').value,
                     urgency: document.getElementById('fileUrgency').value,
-                    desc: document.getElementById('fileDescription').value,
+                    desc: document.getElementById('fileDescription').value.trim(),
                     district: document.getElementById('fileDistrict').value,
                     date: new Date().toLocaleString('tr-TR'),
                     dataUrl: base64Data, // Save as base64 string
@@ -639,15 +671,19 @@
                     const row = document.createElement('tr');
                     row.className = 'bg-white border-b hover:bg-slate-50 transition-colors fade-in';
                     
-                    const deleteBtn = appState.currentUser.role === 'admin' ? 
-                        `<button onclick="deleteFile('${file.id}')" class="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50" title="Sil"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+                    const adminButtons = appState.currentUser.role === 'admin' ? `
+                        <button onclick="openEditModal('${file.id}')" class="text-amber-600 hover:text-amber-700 p-2 rounded-lg hover:bg-amber-50" title="Dosya bilgilerini düzenle" aria-label="${escapeHtml(file.name)} dosyasını düzenle"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="deleteFile('${file.id}')" class="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50" title="Sil" aria-label="${escapeHtml(file.name)} dosyasını sil"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+
+                    const safeName = escapeHtml(file.name);
+                    const safeDescription = file.desc ? escapeHtml(file.desc) : '<span class="text-slate-400 italic">Açıklama yok</span>';
 
                     row.innerHTML = `
                         <td class="px-6 py-4">
                             <div class="flex items-center">
                                 ${file.type === 'pdf' ? '<div class="p-2 bg-red-100 rounded-lg text-red-600 mr-3"><i data-lucide="file-text" class="w-5 h-5"></i></div>' : '<div class="p-2 bg-emerald-100 rounded-lg text-emerald-600 mr-3"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>'}
                                 <div>
-                                    <div class="font-medium text-slate-900 truncate w-40" title="${file.name}">${file.name}</div>
+                                    <div class="font-medium text-slate-900 truncate w-40" title="${safeName}">${safeName}</div>
                                     <div class="text-xs text-slate-500">${file.size}</div>
                                 </div>
                             </div>
@@ -657,13 +693,13 @@
                             <span class="${file.category === 'MEGSIS' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'} px-2 py-0.5 rounded border mr-1">${file.category}</span>
                             <span class="${file.urgency === 'Acil' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'} px-2 py-0.5 rounded">${file.urgency}</span>
                         </td>
-                        <td class="px-6 py-4 hidden md:table-cell text-sm text-slate-600 w-48">${file.desc}</td>
+                        <td class="px-6 py-4 hidden md:table-cell text-sm text-slate-600 w-48">${safeDescription}</td>
                         <td class="px-6 py-4 text-xs text-slate-500">${file.date}</td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end space-x-1">
                                 <button onclick="previewFile('${file.id}')" class="text-primary hover:bg-blue-50 p-2 rounded-lg"><i data-lucide="eye" class="w-4 h-4"></i></button>
                                 <button onclick="downloadFile('${file.id}')" class="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg"><i data-lucide="download" class="w-4 h-4"></i></button>
-                                ${deleteBtn}
+                                ${adminButtons}
                             </div>
                         </td>
                     `;
@@ -679,6 +715,7 @@
             if (!file) return;
 
             document.getElementById('previewTitle').textContent = file.name;
+            document.getElementById('previewDesc').textContent = file.desc || 'Açıklama yok';
             document.getElementById('previewDownloadBtn').onclick = () => downloadFile(id);
 
             const frame = document.getElementById('previewFrame');
@@ -724,6 +761,55 @@
             document.body.removeChild(a);
         }
 
+        function openEditModal(id) {
+            if (appState.currentUser.role !== 'admin') return;
+
+            const file = appState.files.find(f => f.id === id);
+            if (!file) return;
+
+            document.getElementById('editFileId').value = file.id;
+            document.getElementById('editFileName').value = file.name;
+            document.getElementById('editFileDescription').value = file.desc || '';
+
+            const modal = document.getElementById('editModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('editModalContent').classList.remove('scale-95');
+                document.getElementById('editFileName').focus();
+            }, 10);
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('editModalContent').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('editFileForm').reset();
+            }, 300);
+        }
+
+        async function saveFileEdits(event) {
+            event.preventDefault();
+            if (appState.currentUser.role !== 'admin') return;
+
+            const id = document.getElementById('editFileId').value;
+            const file = appState.files.find(f => f.id === id);
+            if (!file) return;
+
+            const newName = document.getElementById('editFileName').value.trim();
+            if (!newName) {
+                showToast('Dosya adı boş bırakılamaz.', 'error');
+                return;
+            }
+
+            file.name = newName;
+            file.desc = document.getElementById('editFileDescription').value.trim();
+            closeEditModal();
+            await saveDataToGithub();
+        }
+
         async function deleteFile(id) {
             if (appState.currentUser.role !== 'admin') return;
             
@@ -735,6 +821,15 @@
         }
 
         // --- UTILS ---
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
         let toastTimeout;
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
