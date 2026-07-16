@@ -10,6 +10,9 @@
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- PDF.js for mobile-friendly PDF navigation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
     <!-- Custom Tailwind Configuration -->
     <script>
@@ -306,7 +309,24 @@
                 </div>
             </div>
             <div class="flex-grow p-0 bg-slate-100 overflow-hidden relative rounded-b-2xl">
-                <iframe id="previewFrame" class="w-full h-full border-0 hidden"></iframe>
+                <div id="pdfViewer" class="hidden w-full h-full flex-col">
+                    <div class="shrink-0 flex flex-wrap items-center justify-center gap-2 p-2 sm:p-3 bg-white border-b border-slate-200 shadow-sm z-10">
+                        <button id="pdfPrevBtn" type="button" onclick="changePdfPage(-1)" class="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
+                            <i data-lucide="chevron-left" class="w-4 h-4 mr-1"></i> Önceki
+                        </button>
+                        <span id="pdfPageInfo" class="min-w-[92px] text-center text-sm font-semibold text-slate-700" aria-live="polite">Sayfa 1 / 1</span>
+                        <button id="pdfNextBtn" type="button" onclick="changePdfPage(1)" class="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
+                            Sonraki <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+                        </button>
+                        <button type="button" onclick="openPdfInNewTab()" class="bg-blue-50 hover:bg-blue-100 text-primary px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
+                            <i data-lucide="external-link" class="w-4 h-4 mr-1"></i> Yeni Sekme
+                        </button>
+                    </div>
+                    <div id="pdfCanvasContainer" class="flex-grow overflow-auto p-3 sm:p-5 text-center">
+                        <div id="pdfLoadingMessage" class="h-full flex items-center justify-center text-sm text-slate-500">PDF yükleniyor...</div>
+                        <canvas id="pdfCanvas" class="hidden mx-auto bg-white shadow-lg max-w-full"></canvas>
+                    </div>
+                </div>
                 <div id="excelPlaceholder" class="hidden w-full h-full flex flex-col items-center justify-center text-center p-6">
                     <i data-lucide="file-spreadsheet" class="w-20 h-20 text-emerald-500 mb-4"></i>
                     <h4 class="text-xl font-bold text-slate-700 mb-2">Excel Dosyası</h4>
@@ -710,6 +730,16 @@
         }
 
         // --- FILE ACTIONS ---
+        let pdfDocument = null;
+        let pdfPageNumber = 1;
+        let pdfRenderTask = null;
+        let currentPdfObjectUrl = '';
+        let pdfResizeTimeout;
+
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
         function previewFile(id) {
             const file = appState.files.find(f => f.id === id);
             if (!file) return;
@@ -718,16 +748,17 @@
             document.getElementById('previewDesc').textContent = file.desc || 'Açıklama yok';
             document.getElementById('previewDownloadBtn').onclick = () => downloadFile(id);
 
-            const frame = document.getElementById('previewFrame');
+            const pdfViewer = document.getElementById('pdfViewer');
             const excelPh = document.getElementById('excelPlaceholder');
 
             if (file.type === 'pdf') {
                 excelPh.classList.add('hidden');
-                frame.classList.remove('hidden');
-                frame.src = file.dataUrl; // Load base64 Data URL
+                pdfViewer.classList.remove('hidden');
+                pdfViewer.classList.add('flex');
             } else {
-                frame.classList.add('hidden');
-                frame.src = '';
+                resetPdfViewer();
+                pdfViewer.classList.add('hidden');
+                pdfViewer.classList.remove('flex');
                 excelPh.classList.remove('hidden');
             }
 
@@ -736,8 +767,123 @@
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 document.getElementById('previewModalContent').classList.remove('scale-95');
+                if (file.type === 'pdf') loadPdf(file.dataUrl);
             }, 10);
         }
+
+        function dataUrlToUint8Array(dataUrl) {
+            const base64 = dataUrl.split(',')[1];
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+        }
+
+        async function loadPdf(dataUrl) {
+            const loadingMessage = document.getElementById('pdfLoadingMessage');
+            const canvas = document.getElementById('pdfCanvas');
+            loadingMessage.textContent = 'PDF yükleniyor...';
+            loadingMessage.classList.remove('hidden');
+            canvas.classList.add('hidden');
+
+            try {
+                if (!window.pdfjsLib) throw new Error('PDF görüntüleyici yüklenemedi');
+
+                const bytes = dataUrlToUint8Array(dataUrl);
+                if (currentPdfObjectUrl) URL.revokeObjectURL(currentPdfObjectUrl);
+                currentPdfObjectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+                pdfDocument = await pdfjsLib.getDocument({ data: bytes }).promise;
+                pdfPageNumber = 1;
+                await renderPdfPage(pdfPageNumber);
+            } catch (error) {
+                console.error(error);
+                loadingMessage.innerHTML = 'PDF önizlemesi açılamadı. <button type="button" onclick="openPdfInNewTab()" class="text-primary font-semibold underline">Yeni sekmede açmayı deneyin.</button>';
+                updatePdfControls();
+            }
+        }
+
+        async function renderPdfPage(pageNumber) {
+            if (!pdfDocument) return;
+
+            const canvas = document.getElementById('pdfCanvas');
+            const container = document.getElementById('pdfCanvasContainer');
+            const loadingMessage = document.getElementById('pdfLoadingMessage');
+            const page = await pdfDocument.getPage(pageNumber);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const availableWidth = Math.max(container.clientWidth - 24, 280);
+            const cssScale = Math.min(2, availableWidth / baseViewport.width);
+            const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+            const viewport = page.getViewport({ scale: cssScale * outputScale });
+            const context = canvas.getContext('2d');
+
+            if (pdfRenderTask) pdfRenderTask.cancel();
+            canvas.width = Math.floor(viewport.width);
+            canvas.height = Math.floor(viewport.height);
+            canvas.style.width = `${Math.floor(viewport.width / outputScale)}px`;
+            canvas.style.height = `${Math.floor(viewport.height / outputScale)}px`;
+
+            loadingMessage.classList.add('hidden');
+            canvas.classList.remove('hidden');
+            pdfPageNumber = pageNumber;
+            updatePdfControls();
+
+            const renderTask = page.render({ canvasContext: context, viewport });
+            pdfRenderTask = renderTask;
+            try {
+                await renderTask.promise;
+            } catch (error) {
+                if (error?.name !== 'RenderingCancelledException') throw error;
+            } finally {
+                if (pdfRenderTask === renderTask) pdfRenderTask = null;
+            }
+        }
+
+        function changePdfPage(direction) {
+            if (!pdfDocument) return;
+            const nextPage = pdfPageNumber + direction;
+            if (nextPage < 1 || nextPage > pdfDocument.numPages) return;
+            document.getElementById('pdfCanvasContainer').scrollTop = 0;
+            renderPdfPage(nextPage);
+        }
+
+        function updatePdfControls() {
+            const totalPages = pdfDocument ? pdfDocument.numPages : 1;
+            document.getElementById('pdfPageInfo').textContent = `Sayfa ${pdfPageNumber} / ${totalPages}`;
+            document.getElementById('pdfPrevBtn').disabled = !pdfDocument || pdfPageNumber <= 1;
+            document.getElementById('pdfNextBtn').disabled = !pdfDocument || pdfPageNumber >= totalPages;
+        }
+
+        function openPdfInNewTab() {
+            if (currentPdfObjectUrl) window.open(currentPdfObjectUrl, '_blank', 'noopener');
+        }
+
+        function resetPdfViewer() {
+            if (pdfRenderTask) {
+                pdfRenderTask.cancel();
+                pdfRenderTask = null;
+            }
+            if (pdfDocument) {
+                pdfDocument.destroy();
+                pdfDocument = null;
+            }
+            if (currentPdfObjectUrl) {
+                URL.revokeObjectURL(currentPdfObjectUrl);
+                currentPdfObjectUrl = '';
+            }
+            pdfPageNumber = 1;
+            document.getElementById('pdfCanvas').classList.add('hidden');
+            document.getElementById('pdfLoadingMessage').classList.remove('hidden');
+            updatePdfControls();
+        }
+
+        window.addEventListener('resize', () => {
+            clearTimeout(pdfResizeTimeout);
+            pdfResizeTimeout = setTimeout(() => {
+                if (pdfDocument && !document.getElementById('previewModal').classList.contains('hidden')) {
+                    renderPdfPage(pdfPageNumber);
+                }
+            }, 200);
+        });
 
         function closePreview() {
             const modal = document.getElementById('previewModal');
@@ -745,7 +891,7 @@
             document.getElementById('previewModalContent').classList.add('scale-95');
             setTimeout(() => {
                 modal.classList.add('hidden');
-                document.getElementById('previewFrame').src = '';
+                resetPdfViewer();
             }, 300);
         }
 
