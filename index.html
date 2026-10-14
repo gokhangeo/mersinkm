@@ -13,6 +13,9 @@
 
     <!-- PDF.js for mobile-friendly PDF navigation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <!-- SheetJS for local XLS / XLSX preview -->
+    <script src="vendor/xlsx.full.min.js"></script>
     
     <!-- Custom Tailwind Configuration -->
     <script>
@@ -73,6 +76,14 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        #excelTable { border-collapse: separate; border-spacing: 0; }
+        #excelTable th, #excelTable td { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 8px 12px; }
+        #excelTable thead th { position: sticky; top: 0; z-index: 2; background: #ecfdf5; text-align: center; }
+        #excelTable tbody th { position: sticky; left: 0; z-index: 1; background: #f1f5f9; text-align: right; font-weight: 500; }
+        #excelTable thead th:first-child { left: 0; z-index: 3; }
+        #excelTable td { min-width: 100px; max-width: 360px; white-space: pre-wrap; overflow-wrap: anywhere; vertical-align: top; }
+        #excelTable tbody tr:nth-child(even) td { background: #f8fafc; }
     </style>
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col">
@@ -91,7 +102,6 @@
                     <i data-lucide="shield-check" class="w-8 h-8 text-primary"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-slate-900">Kurumsal Giriş</h1>
-                <p class="text-slate-500 text-sm mt-1">Mersin hesabıyla giriş yapın.</p>
             </div>
             
             <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
@@ -176,15 +186,17 @@
                 <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-12 gap-6" onsubmit="handleFileUpload(event)">
                     
                     <div class="md:col-span-5 relative">
-                        <label for="fileInput" class="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <label id="fileDropZone" for="fileInput" ondragover="handleFileDragOver(event)" ondragleave="handleFileDragLeave(event)" ondrop="handleFileDrop(event)" class="flex flex-col items-center justify-center w-full min-h-[140px] border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                 <i data-lucide="file-plus" class="w-8 h-8 text-slate-400 mb-2"></i>
-                                <p class="mb-1 text-sm text-slate-500"><span class="font-semibold text-primary">Dosya seçmek için tıkla</span></p>
-                                <p class="text-xs text-slate-400">PDF, XLS, XLSX (Max. 2MB)</p>
+                                <p class="mb-1 text-sm text-slate-500"><span class="font-semibold text-primary">Dosyaları seçin veya buraya bırakın</span></p>
+                                <p class="text-xs text-slate-400">Birden fazla PDF, XLS, XLSX · Her dosya en fazla 2MB</p>
                             </div>
-                            <input id="fileInput" type="file" class="hidden" accept=".pdf, .xls, .xlsx" required onchange="updateFileName(this)" />
+                            <input id="fileInput" type="file" class="hidden" accept=".pdf, .xls, .xlsx" multiple onchange="updateFileName(this)" />
                         </label>
-                        <div id="selectedFileName" class="text-xs text-center mt-2 text-primary font-medium truncate px-2 hidden"></div>
+                        <div id="selectedFileName" class="text-xs mt-2 text-primary font-medium hidden" aria-live="polite"></div>
+                        <ul id="selectedFileList" class="mt-2 max-h-40 overflow-auto space-y-1 hidden" aria-label="Yüklenecek dosyalar"></ul>
+                        <button id="clearFilesBtn" type="button" onclick="clearSelectedFiles()" class="hidden mt-2 text-xs font-medium text-red-600 hover:underline disabled:opacity-50">Seçimi temizle</button>
                     </div>
 
                     <div class="md:col-span-7 flex flex-col justify-between space-y-4">
@@ -210,9 +222,11 @@
                             <input type="text" id="fileDescription" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none" placeholder="İsterseniz bir açıklama ekleyin">
                         </div>
 
+                        <p class="text-xs text-slate-500">Seçilen kategori, aciliyet ve açıklama tüm dosyalara uygulanır.</p>
+
                         <div class="flex justify-end">
-                            <button type="submit" class="bg-primary hover:bg-blue-800 text-white font-medium py-2.5 px-6 rounded-lg transition-all flex items-center">
-                                <i data-lucide="send" class="w-4 h-4 mr-2"></i> Yükle ve Paylaş
+                            <button id="uploadSubmitBtn" type="submit" class="bg-primary hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 px-6 rounded-lg transition-all flex items-center">
+                                <i data-lucide="send" class="w-4 h-4 mr-2"></i> <span id="uploadButtonLabel">Dosyaları Yükle ve Paylaş</span>
                             </button>
                         </div>
                     </div>
@@ -268,25 +282,25 @@
 
     <!-- Preview Modal -->
     <div id="previewModal" class="fixed inset-0 z-[60] hidden bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 opacity-0 transition-opacity duration-300">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col transform scale-95 transition-transform duration-300" id="previewModalContent">
-            <div class="flex justify-between items-center p-4 border-b border-slate-100">
-                <div class="flex items-center">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[85vh] flex flex-col transform scale-95 transition-transform duration-300" id="previewModalContent">
+            <div class="shrink-0 flex justify-between items-center gap-3 p-4 border-b border-slate-100">
+                <div class="flex items-center min-w-0">
                     <div id="previewIcon" class="mr-3"></div>
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800" id="previewTitle">Dosya Önizleme</h3>
-                        <p class="text-xs text-slate-500" id="previewDesc">Yükleniyor...</p>
+                    <div class="min-w-0">
+                        <h3 class="text-base sm:text-lg font-bold text-slate-800 truncate" id="previewTitle">Dosya Önizleme</h3>
+                        <p class="text-xs text-slate-500 truncate" id="previewDesc">Yükleniyor...</p>
                     </div>
                 </div>
-                <div class="flex items-center space-x-2">
+                <div class="shrink-0 flex items-center space-x-2">
                     <button id="previewDownloadBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center transition-colors">
                         <i data-lucide="download" class="w-4 h-4 mr-1"></i> İndir
                     </button>
-                    <button onclick="closePreview()" class="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                    <button onclick="closePreview()" aria-label="Önizlemeyi kapat" class="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
                         <i data-lucide="x" class="w-6 h-6"></i>
                     </button>
                 </div>
             </div>
-            <div class="flex-grow p-0 bg-slate-100 overflow-hidden relative rounded-b-2xl">
+            <div class="flex-grow min-h-0 p-0 bg-slate-100 overflow-hidden relative rounded-b-2xl">
                 <div id="pdfViewer" class="hidden w-full h-full flex-col">
                     <div class="shrink-0 flex flex-wrap items-center justify-center gap-2 p-2 sm:p-3 bg-white border-b border-slate-200 shadow-sm z-10">
                         <button id="pdfPrevBtn" type="button" onclick="changePdfPage(-1)" class="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
@@ -300,15 +314,26 @@
                             <i data-lucide="external-link" class="w-4 h-4 mr-1"></i> Yeni Sekme
                         </button>
                     </div>
-                    <div id="pdfCanvasContainer" class="flex-grow overflow-auto p-3 sm:p-5 text-center">
+                    <div id="pdfCanvasContainer" class="flex-grow min-h-0 overflow-auto p-3 sm:p-5 text-center">
                         <div id="pdfLoadingMessage" class="h-full flex items-center justify-center text-sm text-slate-500">PDF yükleniyor...</div>
                         <canvas id="pdfCanvas" class="hidden mx-auto bg-white shadow-lg max-w-full"></canvas>
                     </div>
                 </div>
-                <div id="excelPlaceholder" class="hidden w-full h-full flex flex-col items-center justify-center text-center p-6">
-                    <i data-lucide="file-spreadsheet" class="w-20 h-20 text-emerald-500 mb-4"></i>
-                    <h4 class="text-xl font-bold text-slate-700 mb-2">Excel Dosyası</h4>
-                    <p class="text-slate-500 max-w-md">Lütfen görüntülemek için cihazınıza indirin.</p>
+                <div id="excelViewer" class="hidden w-full h-full flex-col min-h-0">
+                    <div id="excelToolbar" class="hidden shrink-0 flex flex-wrap items-center gap-3 p-3 bg-white border-b border-slate-200">
+                        <label for="excelSheetSelect" class="text-sm font-medium text-slate-600">Çalışma sayfası</label>
+                        <select id="excelSheetSelect" onchange="selectExcelSheet()" class="max-w-full min-w-0 border border-slate-300 rounded-lg p-2 text-sm bg-white" aria-label="Excel çalışma sayfası"></select>
+                        <span id="excelSheetInfo" class="text-xs text-slate-500" aria-live="polite"></span>
+                    </div>
+                    <div id="excelMessage" class="flex-grow flex items-center justify-center p-6 text-center text-sm text-slate-500" role="status">Excel yükleniyor...</div>
+                    <div id="excelTableContainer" class="hidden flex-grow min-h-0 overflow-auto bg-white">
+                        <table id="excelTable" class="text-xs text-left text-slate-700 w-max min-w-full" aria-label="Excel içeriği"></table>
+                    </div>
+                    <div id="excelPagination" class="hidden shrink-0 flex flex-wrap items-center justify-center gap-2 p-2 bg-white border-t border-slate-200">
+                        <button id="excelPrevBtn" type="button" onclick="changeExcelPage(-1)" class="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg text-sm">Önceki</button>
+                        <span id="excelPageInfo" class="text-xs sm:text-sm font-medium text-slate-600" aria-live="polite"></span>
+                        <button id="excelNextBtn" type="button" onclick="changeExcelPage(1)" class="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg text-sm">Sonraki</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -429,6 +454,9 @@
         }
 
         function logout() {
+            if (isUploading) return;
+            closePreview();
+            clearSelectedFiles();
             appState.currentUser = null;
             appState.files = [];
             document.getElementById('loginForm').reset();
@@ -463,7 +491,17 @@
                     const data = await response.json();
                     appState.fileSha = data.sha;
                     // Decode base64 content
-                    const content = decodeURIComponent(escape(atob(data.content)));
+                    let content;
+                    if (data.content && data.encoding === 'base64') {
+                        content = decodeURIComponent(escape(atob(data.content)));
+                    } else {
+                        // The Contents API omits base64 content for files larger than 1MB.
+                        const rawResponse = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+                            headers: { 'Authorization': `token ${getAuthToken()}`, 'Accept': 'application/vnd.github.raw+json' }
+                        });
+                        if (!rawResponse.ok) throw new Error('Dosya içeriği alınamadı');
+                        content = await rawResponse.text();
+                    }
                     appState.files = JSON.parse(content).filter(file => file.district === FILE_DISTRICT);
                 } else {
                     throw new Error('Bağlantı hatası');
@@ -523,62 +561,158 @@
         }
 
         // --- FILE UPLOAD ---
+        let selectedUploadFiles = [];
+        let isUploading = false;
+
         function updateFileName(input) {
-            const nameDisplay = document.getElementById('selectedFileName');
-            if (input.files && input.files.length > 0) {
-                const file = input.files[0];
-                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                nameDisplay.textContent = `Seçilen: ${file.name} (${sizeMB} MB)`;
-                nameDisplay.classList.remove('hidden');
-                
-                if (file.size > 2 * 1024 * 1024) {
-                    showToast('Dosya boyutu çok büyük! Maksimum 2MB yükleyebilirsiniz.', 'error');
-                    input.value = '';
-                    nameDisplay.classList.add('hidden');
-                }
-            } else {
-                nameDisplay.classList.add('hidden');
-            }
+            addSelectedFiles(Array.from(input.files || []));
+            input.value = '';
         }
 
-        function handleFileUpload(event) {
+        function addSelectedFiles(files) {
+            if (isUploading) return;
+            const rejected = [];
+            files.forEach(file => {
+                if (!/\.(pdf|xls|xlsx)$/i.test(file.name)) {
+                    rejected.push(`${file.name}: yalnızca PDF, XLS ve XLSX yüklenebilir`);
+                } else if (file.size === 0 || file.size > 2 * 1024 * 1024) {
+                    rejected.push(`${file.name}: dosya boş veya 2MB sınırını aşıyor`);
+                } else if (!selectedUploadFiles.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified)) {
+                    selectedUploadFiles.push(file);
+                }
+            });
+            renderSelectedFiles();
+            if (rejected.length) showToast(rejected.join(' · '), 'error');
+        }
+
+        function renderSelectedFiles() {
+            const nameDisplay = document.getElementById('selectedFileName');
+            const list = document.getElementById('selectedFileList');
+            const hasFiles = selectedUploadFiles.length > 0;
+            nameDisplay.classList.toggle('hidden', !hasFiles);
+            list.classList.toggle('hidden', !hasFiles);
+            document.getElementById('clearFilesBtn').classList.toggle('hidden', !hasFiles);
+            const totalSize = selectedUploadFiles.reduce((total, file) => total + file.size, 0);
+            nameDisplay.textContent = `${selectedUploadFiles.length} dosya seçildi · Toplam ${(totalSize / (1024 * 1024)).toFixed(2)} MB`;
+            document.getElementById('uploadButtonLabel').textContent = isUploading ? 'Dosyalar yükleniyor...' : hasFiles ? `${selectedUploadFiles.length} Dosyayı Yükle ve Paylaş` : 'Dosyaları Yükle ve Paylaş';
+            list.innerHTML = '';
+            selectedUploadFiles.forEach((file, index) => {
+                const item = document.createElement('li');
+                item.className = 'flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs';
+                const label = document.createElement('span');
+                label.className = 'min-w-0 break-words text-slate-600';
+                label.textContent = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'shrink-0 text-red-600 hover:underline disabled:opacity-50';
+                remove.textContent = 'Çıkar';
+                remove.disabled = isUploading;
+                remove.setAttribute('aria-label', `${file.name} dosyasını seçimden çıkar`);
+                remove.onclick = () => {
+                    if (isUploading) return;
+                    selectedUploadFiles.splice(index, 1);
+                    renderSelectedFiles();
+                };
+                item.appendChild(label);
+                item.appendChild(remove);
+                list.appendChild(item);
+            });
+        }
+
+        function clearSelectedFiles() {
+            if (isUploading) return;
+            selectedUploadFiles = [];
+            document.getElementById('fileInput').value = '';
+            renderSelectedFiles();
+        }
+
+        function handleFileDragOver(event) {
             event.preventDefault();
-            
-            const fileInput = document.getElementById('fileInput');
-            if (!fileInput.files || fileInput.files.length === 0) return;
+            if (isUploading) return;
+            event.dataTransfer.dropEffect = 'copy';
+            document.getElementById('fileDropZone').classList.add('border-primary', 'bg-blue-50');
+        }
 
-            const file = fileInput.files[0];
-            const reader = new FileReader();
+        function handleFileDragLeave(event) {
+            if (event.currentTarget.contains(event.relatedTarget)) return;
+            document.getElementById('fileDropZone').classList.remove('border-primary', 'bg-blue-50');
+        }
 
-            reader.onload = async (e) => {
-                const base64Data = e.target.result; // Data URL
-                
-                const newFile = {
-                    id: Date.now().toString(),
+        function handleFileDrop(event) {
+            event.preventDefault();
+            document.getElementById('fileDropZone').classList.remove('border-primary', 'bg-blue-50');
+            addSelectedFiles(Array.from(event.dataTransfer.files || []));
+        }
+
+        function readFileAsDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error(`${file.name} okunamadı`));
+                reader.onabort = () => reject(new Error(`${file.name} okuma işlemi iptal edildi`));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleFileUpload(event) {
+            event.preventDefault();
+            if (isUploading || appState.currentUser?.role !== 'admin') return;
+            if (!selectedUploadFiles.length) {
+                showToast('Yüklemek için en az bir dosya seçin.', 'error');
+                return;
+            }
+            const files = [...selectedUploadFiles];
+            const category = document.getElementById('fileCategory').value;
+            const urgency = document.getElementById('fileUrgency').value;
+            const description = document.getElementById('fileDescription').value.trim();
+            const uploader = appState.currentUser.title;
+            const previousFiles = appState.files;
+            isUploading = true;
+            document.getElementById('uploadSubmitBtn').disabled = true;
+            document.getElementById('clearFilesBtn').disabled = true;
+            document.getElementById('fileInput').disabled = true;
+            renderSelectedFiles();
+            showLoading(`${files.length} dosya yükleniyor, lütfen bekleyin...`);
+
+            try {
+                const batchId = Date.now().toString();
+                const newFiles = await Promise.all(files.map(async (file, index) => ({
+                    id: `${batchId}-${index}-${Math.random().toString(36).slice(2, 8)}`,
                     name: file.name,
-                    type: file.name.split('.').pop().toLowerCase() === 'pdf' ? 'pdf' : 'excel',
-                    category: document.getElementById('fileCategory').value,
-                    urgency: document.getElementById('fileUrgency').value,
-                    desc: document.getElementById('fileDescription').value.trim(),
+                    type: /\.pdf$/i.test(file.name) ? 'pdf' : 'excel',
+                    category,
+                    urgency,
+                    desc: description,
                     district: FILE_DISTRICT,
                     date: new Date().toLocaleString('tr-TR'),
-                    dataUrl: base64Data, // Save as base64 string
+                    dataUrl: await readFileAsDataUrl(file),
                     size: (file.size / 1024).toFixed(0) + ' KB',
-                    uploader: appState.currentUser.title,
+                    uploader,
                     viewedAt: null,
                     viewedBy: null
-                };
-
-                appState.files.unshift(newFile);
-                
-                // Reset Form
+                })));
+                appState.files = [...newFiles, ...previousFiles];
+                const saved = await saveDataToGithub({ silent: true });
+                if (!saved) {
+                    appState.files = previousFiles;
+                    renderTable();
+                    return;
+                }
+                selectedUploadFiles = [];
                 document.getElementById('uploadForm').reset();
-                document.getElementById('selectedFileName').classList.add('hidden');
-                
-                await saveDataToGithub();
-            };
-
-            reader.readAsDataURL(file);
+                showToast(`${newFiles.length} dosya başarıyla yüklendi ve paylaşıldı!`, 'success');
+            } catch (error) {
+                appState.files = previousFiles;
+                renderTable();
+                showToast(`${error.message}. Dosya seçiminiz korundu; tekrar deneyebilirsiniz.`, 'error');
+            } finally {
+                isUploading = false;
+                document.getElementById('uploadSubmitBtn').disabled = false;
+                document.getElementById('clearFilesBtn').disabled = false;
+                document.getElementById('fileInput').disabled = false;
+                renderSelectedFiles();
+                hideLoading();
+            }
         }
 
         // --- RENDER & FILTER ---
@@ -678,10 +812,18 @@
 
         // --- FILE ACTIONS ---
         let pdfDocument = null;
+        let pdfLoadingTask = null;
         let pdfPageNumber = 1;
+        let pdfPageRequest = 0;
         let pdfRenderTask = null;
         let currentPdfObjectUrl = '';
         let pdfResizeTimeout;
+        let previewVersion = 0;
+        let previewOpenTimer;
+        let previewCloseTimer;
+        let excelWorkbook = null;
+        let excelSheetIndex = 0;
+        let excelPageNumber = 1;
 
         if (window.pdfjsLib) {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -694,31 +836,154 @@
             document.getElementById('previewTitle').textContent = file.name;
             document.getElementById('previewDesc').textContent = file.desc || 'Açıklama yok';
             document.getElementById('previewDownloadBtn').onclick = () => downloadFile(id);
+            document.getElementById('previewTitle').title = file.name;
+
+            const version = ++previewVersion;
+            clearTimeout(previewOpenTimer);
+            clearTimeout(previewCloseTimer);
+            resetPdfViewer();
+            resetExcelViewer();
 
             const pdfViewer = document.getElementById('pdfViewer');
-            const excelPh = document.getElementById('excelPlaceholder');
+            const excelViewer = document.getElementById('excelViewer');
 
             if (file.type === 'pdf') {
-                excelPh.classList.add('hidden');
+                excelViewer.classList.add('hidden');
+                excelViewer.classList.remove('flex');
                 pdfViewer.classList.remove('hidden');
                 pdfViewer.classList.add('flex');
             } else {
-                resetPdfViewer();
                 pdfViewer.classList.add('hidden');
                 pdfViewer.classList.remove('flex');
-                excelPh.classList.remove('hidden');
+                excelViewer.classList.remove('hidden');
+                excelViewer.classList.add('flex');
             }
 
             const modal = document.getElementById('previewModal');
             modal.classList.remove('hidden');
-            setTimeout(() => {
+            previewOpenTimer = setTimeout(() => {
+                if (version !== previewVersion) return;
                 modal.classList.remove('opacity-0');
                 document.getElementById('previewModalContent').classList.remove('scale-95');
                 if (file.type === 'pdf') {
-                    loadPdf(file.dataUrl);
-                    markFileAsViewed(file);
+                    loadPdf(file.dataUrl, version);
+                } else {
+                    loadExcel(file.dataUrl);
                 }
+                markFileAsViewed(file);
             }, 10);
+        }
+
+        function resetExcelViewer() {
+            excelWorkbook = null;
+            excelSheetIndex = 0;
+            excelPageNumber = 1;
+            document.getElementById('excelSheetSelect').innerHTML = '';
+            document.getElementById('excelTable').innerHTML = '';
+            document.getElementById('excelToolbar').classList.add('hidden');
+            document.getElementById('excelPagination').classList.add('hidden');
+            document.getElementById('excelTableContainer').classList.add('hidden');
+            document.getElementById('excelMessage').textContent = 'Excel yükleniyor...';
+            document.getElementById('excelMessage').classList.remove('hidden');
+        }
+
+        function loadExcel(dataUrl) {
+            const message = document.getElementById('excelMessage');
+            try {
+                if (!window.XLSX) throw new Error('Excel görüntüleyici yüklenemedi');
+                excelWorkbook = XLSX.read(dataUrlToUint8Array(dataUrl), { type: 'array', cellHTML: false });
+                if (!excelWorkbook.SheetNames.length) throw new Error('Çalışma sayfası bulunamadı');
+                const select = document.getElementById('excelSheetSelect');
+                select.innerHTML = '';
+                excelWorkbook.SheetNames.forEach((name, index) => {
+                    const option = document.createElement('option');
+                    option.value = String(index);
+                    option.textContent = name;
+                    select.appendChild(option);
+                });
+                select.value = '0';
+                document.getElementById('excelToolbar').classList.remove('hidden');
+                selectExcelSheet();
+            } catch (error) {
+                console.error('Excel önizleme hatası:', error.message);
+                message.textContent = 'Excel önizlemesi açılamadı. Şifreli veya bozuk dosyalar görüntülenemez; İndir düğmesini kullanabilirsiniz.';
+                message.classList.remove('hidden');
+                document.getElementById('excelTableContainer').classList.add('hidden');
+                document.getElementById('excelPagination').classList.add('hidden');
+            }
+        }
+
+        function selectExcelSheet() {
+            const index = Number(document.getElementById('excelSheetSelect').value);
+            if (!excelWorkbook || !Number.isInteger(index) || !excelWorkbook.SheetNames[index]) return;
+            excelSheetIndex = index;
+            excelPageNumber = 1;
+            renderExcelPage();
+        }
+
+        function getExcelPageRange() {
+            const sheet = excelWorkbook?.Sheets[excelWorkbook.SheetNames[excelSheetIndex]];
+            if (!sheet || !sheet['!ref']) return null;
+            const hasData = Object.keys(sheet).some(address => !address.startsWith('!') && (sheet[address].v != null || sheet[address].f));
+            if (!hasData) return null;
+            const range = XLSX.utils.decode_range(sheet['!ref']);
+            const columns = range.e.c - range.s.c + 1;
+            const rows = range.e.r - range.s.r + 1;
+            // Bound each page's cell count while keeping every row and column accessible.
+            const pageSize = Math.max(1, Math.min(100, Math.floor(5000 / columns)));
+            return { sheet, range, columns, rows, pageSize, pages: Math.ceil(rows / pageSize) };
+        }
+
+        function renderExcelPage() {
+            const data = getExcelPageRange();
+            const message = document.getElementById('excelMessage');
+            const container = document.getElementById('excelTableContainer');
+            const pagination = document.getElementById('excelPagination');
+            if (!data) {
+                document.getElementById('excelSheetInfo').textContent = 'Boş çalışma sayfası';
+                message.textContent = 'Bu çalışma sayfasında veri bulunmuyor.';
+                message.classList.remove('hidden');
+                container.classList.add('hidden');
+                pagination.classList.add('hidden');
+                return;
+            }
+            const { sheet, range, columns, rows, pageSize, pages } = data;
+            excelPageNumber = Math.max(1, Math.min(excelPageNumber, pages));
+            const startRow = range.s.r + (excelPageNumber - 1) * pageSize;
+            const endRow = Math.min(startRow + pageSize - 1, range.e.r);
+            let tableHtml = '<thead><tr><th scope="col" aria-label="Satır numarası">#</th>';
+            for (let column = range.s.c; column <= range.e.c; column++) {
+                tableHtml += `<th scope="col">${XLSX.utils.encode_col(column)}</th>`;
+            }
+            tableHtml += '</tr></thead><tbody>';
+            for (let row = startRow; row <= endRow; row++) {
+                tableHtml += `<tr><th scope="row">${row + 1}</th>`;
+                for (let column = range.s.c; column <= range.e.c; column++) {
+                    const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })];
+                    const value = cell ? cell.v == null && cell.f ? `=${cell.f}` : XLSX.utils.format_cell(cell) : '';
+                    tableHtml += `<td>${escapeHtml(value)}</td>`;
+                }
+                tableHtml += '</tr>';
+            }
+            document.getElementById('excelTable').innerHTML = tableHtml + '</tbody>';
+            document.getElementById('excelSheetInfo').textContent = `${rows.toLocaleString('tr-TR')} satır · ${columns} sütun`;
+            document.getElementById('excelPageInfo').textContent = `Satır ${startRow + 1}–${endRow + 1} / ${range.e.r + 1} · Sayfa ${excelPageNumber} / ${pages}`;
+            document.getElementById('excelPrevBtn').disabled = excelPageNumber <= 1;
+            document.getElementById('excelNextBtn').disabled = excelPageNumber >= pages;
+            message.classList.add('hidden');
+            container.classList.remove('hidden');
+            container.scrollTop = 0;
+            container.scrollLeft = 0;
+            pagination.classList.remove('hidden');
+        }
+
+        function changeExcelPage(direction) {
+            const data = getExcelPageRange();
+            if (!data) return;
+            const nextPage = excelPageNumber + direction;
+            if (nextPage < 1 || nextPage > data.pages) return;
+            excelPageNumber = nextPage;
+            renderExcelPage();
         }
 
         function dataUrlToUint8Array(dataUrl) {
@@ -729,7 +994,7 @@
             return bytes;
         }
 
-        async function loadPdf(dataUrl) {
+        async function loadPdf(dataUrl, version = previewVersion) {
             const loadingMessage = document.getElementById('pdfLoadingMessage');
             const canvas = document.getElementById('pdfCanvas');
             loadingMessage.textContent = 'PDF yükleniyor...';
@@ -742,10 +1007,19 @@
                 const bytes = dataUrlToUint8Array(dataUrl);
                 if (currentPdfObjectUrl) URL.revokeObjectURL(currentPdfObjectUrl);
                 currentPdfObjectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-                pdfDocument = await pdfjsLib.getDocument({ data: bytes }).promise;
+                const task = pdfjsLib.getDocument({ data: bytes });
+                pdfLoadingTask = task;
+                const loadedDocument = await task.promise;
+                if (version !== previewVersion) {
+                    await loadedDocument.destroy();
+                    return;
+                }
+                pdfLoadingTask = null;
+                pdfDocument = loadedDocument;
                 pdfPageNumber = 1;
                 await renderPdfPage(pdfPageNumber);
             } catch (error) {
+                if (version !== previewVersion) return;
                 console.error(error);
                 loadingMessage.innerHTML = 'PDF önizlemesi açılamadı. <button type="button" onclick="openPdfInNewTab()" class="text-primary font-semibold underline">Yeni sekmede açmayı deneyin.</button>';
                 updatePdfControls();
@@ -755,10 +1029,14 @@
         async function renderPdfPage(pageNumber) {
             if (!pdfDocument) return;
 
+            const documentToRender = pdfDocument;
+            const request = ++pdfPageRequest;
+
             const canvas = document.getElementById('pdfCanvas');
             const container = document.getElementById('pdfCanvasContainer');
             const loadingMessage = document.getElementById('pdfLoadingMessage');
-            const page = await pdfDocument.getPage(pageNumber);
+            const page = await documentToRender.getPage(pageNumber);
+            if (documentToRender !== pdfDocument || request !== pdfPageRequest) return;
             const baseViewport = page.getViewport({ scale: 1 });
             const availableWidth = Math.max(container.clientWidth - 24, 280);
             const cssScale = Math.min(2, availableWidth / baseViewport.width);
@@ -808,6 +1086,11 @@
         }
 
         function resetPdfViewer() {
+            pdfPageRequest++;
+            if (pdfLoadingTask) {
+                pdfLoadingTask.destroy().catch(() => {});
+                pdfLoadingTask = null;
+            }
             if (pdfRenderTask) {
                 pdfRenderTask.cancel();
                 pdfRenderTask = null;
@@ -836,12 +1119,16 @@
         });
 
         function closePreview() {
+            previewVersion++;
+            clearTimeout(previewOpenTimer);
+            clearTimeout(previewCloseTimer);
             const modal = document.getElementById('previewModal');
             modal.classList.add('opacity-0');
             document.getElementById('previewModalContent').classList.add('scale-95');
-            setTimeout(() => {
+            resetPdfViewer();
+            resetExcelViewer();
+            previewCloseTimer = setTimeout(() => {
                 modal.classList.add('hidden');
-                resetPdfViewer();
             }, 300);
         }
 
