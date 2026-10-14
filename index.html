@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MEGSIS & EBYS Birim Klasörleri Portalı</title>
+    <title>MEGSIS & EBYS Dosya Portalı</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -91,7 +91,7 @@
                     <i data-lucide="shield-check" class="w-8 h-8 text-primary"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-slate-900">Kurumsal Giriş</h1>
-                <p class="text-slate-500 text-sm mt-1">Ana kullanıcı veya birim klasörü hesabıyla giriş yapın.</p>
+                <p class="text-slate-500 text-sm mt-1">Mersin hesabıyla giriş yapın.</p>
             </div>
             
             <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
@@ -102,18 +102,6 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
                     <input type="password" id="password" class="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-primary focus:ring-1 focus:ring-primary" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Birim Klasörü</label>
-                    <select id="loginDistrict" class="w-full border border-slate-300 rounded-lg p-3 outline-none bg-white focus:border-primary focus:ring-1 focus:ring-primary">
-                        <option value="Merkez İlçe">Merkez İlçe</option>
-                        <option value="Anamur">Anamur</option>
-                        <option value="Silifke">Silifke</option>
-                        <option value="Erdemli">Erdemli</option>
-                        <option value="Mut">Mut</option>
-                        <option value="Tarsus">Tarsus</option>
-                    </select>
-                    <p class="text-xs text-slate-400 mt-1">Birim hesabıyla girişte görüntülenecek klasörü seçin.</p>
                 </div>
                 <div id="loginError" class="text-red-500 text-sm hidden font-medium">Kullanıcı adı veya şifre hatalı!</div>
                 <button type="submit" class="w-full bg-primary hover:bg-blue-800 text-white font-medium py-3 rounded-lg transition-colors mt-4">
@@ -137,7 +125,7 @@
                     <div class="flex items-center space-x-4">
                         <div class="text-sm bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center">
                             <i data-lucide="user" class="w-4 h-4 mr-2 text-slate-400"></i>
-                            <span id="currentUserDisplay" class="font-medium text-slate-200">Birim</span>
+                            <span id="currentUserDisplay" class="font-medium text-slate-200">Mersin</span>
                         </div>
                         <button onclick="logout()" class="text-red-400 hover:text-red-300 hover:bg-slate-800 p-2 rounded-lg transition-colors" title="Çıkış Yap">
                             <i data-lucide="log-out" class="w-5 h-5"></i>
@@ -152,8 +140,8 @@
             
             <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 fade-in">
                 <div>
-                    <h1 class="text-2xl font-bold text-slate-900" id="dashboardTitle">MEGSIS & EBYS Birim Klasörleri</h1>
-                    <p class="text-slate-500 mt-1">Birim klasörlerindeki güncel raporları görüntüleyin ve indirin.</p>
+                    <h1 class="text-2xl font-bold text-slate-900" id="dashboardTitle">MEGSIS & EBYS Dosyaları</h1>
+                    <p class="text-slate-500 mt-1">Güncel işlem dosyalarını görüntüleyin ve indirin.</p>
                 </div>
                 
                 <div class="flex space-x-4">
@@ -182,7 +170,7 @@
             <section id="uploadSection" class="mb-10 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 slide-up hidden">
                 <div class="flex items-center mb-4 text-primary">
                     <i data-lucide="upload-cloud" class="w-6 h-6 mr-2"></i>
-                    <h2 class="text-lg font-bold">Birim Klasörüne Yeni İşlem Dosyası Yükle</h2>
+                    <h2 class="text-lg font-bold">Yeni İşlem Dosyası Yükle</h2>
                 </div>
                 
                 <form id="uploadForm" class="grid grid-cols-1 md:grid-cols-12 gap-6" onsubmit="handleFileUpload(event)">
@@ -200,18 +188,7 @@
                     </div>
 
                     <div class="md:col-span-7 flex flex-col justify-between space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Hedef Klasör</label>
-                                <select id="fileDistrict" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white">
-                                    <option value="Merkez İlçe">Merkez İlçe</option>
-                                    <option value="Anamur">Anamur</option>
-                                    <option value="Silifke">Silifke</option>
-                                    <option value="Erdemli">Erdemli</option>
-                                    <option value="Mut">Mut</option>
-                                    <option value="Tarsus">Tarsus</option>
-                                </select>
-                            </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Sistem Kategorisi</label>
                                 <select id="fileCategory" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white">
@@ -267,7 +244,7 @@
                         <thead class="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200">
                             <tr>
                                 <th scope="col" class="px-6 py-4">Dosya</th>
-                                <th scope="col" class="px-6 py-4">İlçe / Kategori</th>
+                                <th scope="col" class="px-6 py-4">Kategori</th>
                                 <th scope="col" class="px-6 py-4 hidden md:table-cell">Açıklama</th>
                                 <th scope="col" class="px-6 py-4">Tarih</th>
                                 <th scope="col" class="px-6 py-4">Görüntülenme</th>
@@ -282,7 +259,7 @@
                             <i data-lucide="inbox" class="w-8 h-8 text-slate-400"></i>
                         </div>
                         <h3 class="text-lg font-medium text-slate-900 mb-1">Görüntülenecek dosya yok</h3>
-                        <p class="text-slate-500">Şu anda bu birim için bekleyen bir işlem bulunmuyor.</p>
+                        <p class="text-slate-500">Seçili filtrelere uygun bir işlem dosyası bulunmuyor.</p>
                     </div>
                 </div>
             </section>
@@ -380,33 +357,15 @@
         lucide.createIcons();
 
         // --- AUTH & USER DATA ---
-        const UNIT_FOLDERS = [
-            { value: 'Merkez İlçe', title: 'Merkez İlçe Birimi' },
-            { value: 'Anamur', title: 'Anamur Birimi' },
-            { value: 'Silifke', title: 'Silifke Birimi' },
-            { value: 'Erdemli', title: 'Erdemli Birimi' },
-            { value: 'Mut', title: 'Mut Birimi' },
-            { value: 'Tarsus', title: 'Tarsus Birimi' }
-        ];
+        const FILE_DISTRICT = 'Merkez İlçe';
 
         const MAIN_LOGIN = {
             username: 'mersin',
             pass: '503344',
             role: 'admin',
-            district: 'Tüm Klasörler',
-            title: 'Ana Kullanıcı'
+            district: FILE_DISTRICT,
+            title: 'Mersin'
         };
-
-        const UNIT_LOGIN = {
-            username: 'mersinkm',
-            pass: '503344',
-            role: 'staff'
-        };
-
-        function getFolderTitle(district) {
-            const folder = UNIT_FOLDERS.find(item => item.value === district);
-            return folder ? folder.title : `${district} Birimi`;
-        }
 
         // --- GITHUB API SETTINGS ---
         const repo = 'gokhangeo/mersinkm';
@@ -438,36 +397,17 @@
             loadingText: document.getElementById('loadingText')
         };
 
-        populateFolderSelects();
-
-        function populateFolderSelects() {
-            const options = UNIT_FOLDERS
-                .map(folder => `<option value="${folder.value}">${folder.value}</option>`)
-                .join('');
-            document.getElementById('loginDistrict').innerHTML = options;
-            document.getElementById('fileDistrict').innerHTML = options;
-        }
-
 // --- LOGIN / LOGOUT ---
         function handleLogin(e) {
             e.preventDefault();
             const userVal = document.getElementById('username').value.trim().toLowerCase();
             const passVal = document.getElementById('password').value.trim();
-            const selectedFolder = document.getElementById('loginDistrict').value;
             const errorDiv = document.getElementById('loginError');
 
             let authenticatedUser = null;
 
             if (userVal === MAIN_LOGIN.username && passVal === MAIN_LOGIN.pass) {
-                authenticatedUser = { username: MAIN_LOGIN.username, ...MAIN_LOGIN };
-            } else if (userVal === UNIT_LOGIN.username && passVal === UNIT_LOGIN.pass) {
-                authenticatedUser = {
-                    username: UNIT_LOGIN.username,
-                    pass: UNIT_LOGIN.pass,
-                    role: UNIT_LOGIN.role,
-                    district: selectedFolder,
-                    title: getFolderTitle(selectedFolder)
-                };
+                authenticatedUser = { ...MAIN_LOGIN };
             }
 
             if (authenticatedUser) {
@@ -475,13 +415,8 @@
                 errorDiv.classList.add('hidden');
                 
                 document.getElementById('currentUserDisplay').textContent = appState.currentUser.title;
-                if (appState.currentUser.role === 'admin') {
-                    DOM.uploadSection.classList.remove('hidden');
-                    document.getElementById('dashboardTitle').textContent = 'Birim Klasörleri Yönetimi';
-                } else {
-                    DOM.uploadSection.classList.add('hidden');
-                    document.getElementById('dashboardTitle').textContent = appState.currentUser.title + ' Bekleyen İşlemleri';
-                }
+                DOM.uploadSection.classList.remove('hidden');
+                document.getElementById('dashboardTitle').textContent = 'MEGSIS & EBYS Dosyaları';
 
                 DOM.loginScreen.classList.add('hidden');
                 DOM.appContainer.classList.remove('hidden');
@@ -529,7 +464,7 @@
                     appState.fileSha = data.sha;
                     // Decode base64 content
                     const content = decodeURIComponent(escape(atob(data.content)));
-                    appState.files = JSON.parse(content);
+                    appState.files = JSON.parse(content).filter(file => file.district === FILE_DISTRICT);
                 } else {
                     throw new Error('Bağlantı hatası');
                 }
@@ -547,7 +482,7 @@
             if (!silent) showLoading('Değişiklikler GitHub\'a kaydediliyor...');
             try {
                 // Encode to Base64 safely for UTF-8
-                const jsonStr = JSON.stringify(appState.files);
+                const jsonStr = JSON.stringify(appState.files.filter(file => file.district === FILE_DISTRICT));
                 const base64Content = btoa(unescape(encodeURIComponent(jsonStr)));
 
                 const bodyData = {
@@ -625,7 +560,7 @@
                     category: document.getElementById('fileCategory').value,
                     urgency: document.getElementById('fileUrgency').value,
                     desc: document.getElementById('fileDescription').value.trim(),
-                    district: document.getElementById('fileDistrict').value,
+                    district: FILE_DISTRICT,
                     date: new Date().toLocaleString('tr-TR'),
                     dataUrl: base64Data, // Save as base64 string
                     size: (file.size / 1024).toFixed(0) + ' KB',
@@ -669,11 +604,8 @@
         function renderTable() {
             DOM.fileTableBody.innerHTML = '';
             
-            // 1. Filter by User District (Admin sees all)
-            let visibleFiles = appState.files;
-            if (appState.currentUser.role !== 'admin') {
-                visibleFiles = visibleFiles.filter(f => f.district === appState.currentUser.district);
-            }
+            // Keep the retained Merkez İlçe files in one list.
+            const visibleFiles = appState.files.filter(file => file.district === FILE_DISTRICT);
 
             // Update Stats
             document.getElementById('stat-megsis').textContent = visibleFiles.filter(f => f.category === 'MEGSIS').length;
@@ -724,7 +656,6 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-xs font-medium">
-                            <div class="text-slate-800 mb-1">${file.district}</div>
                             <span class="${file.category === 'MEGSIS' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'} px-2 py-0.5 rounded border mr-1">${file.category}</span>
                             <span class="${file.urgency === 'Acil' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'} px-2 py-0.5 rounded">${file.urgency}</span>
                         </td>
