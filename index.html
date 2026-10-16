@@ -190,9 +190,9 @@
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                 <i data-lucide="file-plus" class="w-8 h-8 text-slate-400 mb-2"></i>
                                 <p class="mb-1 text-sm text-slate-500"><span class="font-semibold text-primary">Dosyaları seçin veya buraya bırakın</span></p>
-                                <p class="text-xs text-slate-400">Birden fazla PDF, XLS, XLSX · Her dosya en fazla 2MB</p>
+                                <p class="text-xs text-slate-400">EXE dahil tüm dosya türleri · Her dosya en fazla 2MB</p>
                             </div>
-                            <input id="fileInput" type="file" class="hidden" accept=".pdf, .xls, .xlsx" multiple onchange="updateFileName(this)" />
+                            <input id="fileInput" type="file" class="hidden" multiple onchange="updateFileName(this)" />
                         </label>
                         <div id="selectedFileName" class="text-xs mt-2 text-primary font-medium hidden" aria-live="polite"></div>
                         <ul id="selectedFileList" class="mt-2 max-h-40 overflow-auto space-y-1 hidden" aria-label="Yüklenecek dosyalar"></ul>
@@ -334,6 +334,13 @@
                         <span id="excelPageInfo" class="text-xs sm:text-sm font-medium text-slate-600" aria-live="polite"></span>
                         <button id="excelNextBtn" type="button" onclick="changeExcelPage(1)" class="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg text-sm">Sonraki</button>
                     </div>
+                </div>
+                <div id="filePlaceholder" class="hidden w-full h-full flex-col items-center justify-center text-center p-6">
+                    <i data-lucide="file" class="w-16 h-16 text-slate-400 mb-4"></i>
+                    <h4 class="text-lg font-bold text-slate-700 mb-2">Dosya İndirme</h4>
+                    <p id="filePlaceholderInfo" class="text-sm text-slate-500 mb-2"></p>
+                    <p class="text-sm text-slate-500 max-w-md">Bu dosya türü için önizleme bulunmuyor. Dosyayı İndir düğmesiyle cihazınıza kaydedebilirsiniz.</p>
+                    <button id="filePlaceholderDownloadBtn" type="button" class="mt-4 bg-primary hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-medium">Dosyayı İndir</button>
                 </div>
             </div>
         </div>
@@ -573,9 +580,7 @@
             if (isUploading) return;
             const rejected = [];
             files.forEach(file => {
-                if (!/\.(pdf|xls|xlsx)$/i.test(file.name)) {
-                    rejected.push(`${file.name}: yalnızca PDF, XLS ve XLSX yüklenebilir`);
-                } else if (file.size === 0 || file.size > 2 * 1024 * 1024) {
+                if (file.size === 0 || file.size > 2 * 1024 * 1024) {
                     rejected.push(`${file.name}: dosya boş veya 2MB sınırını aşıyor`);
                 } else if (!selectedUploadFiles.some(existing => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified)) {
                     selectedUploadFiles.push(file);
@@ -679,7 +684,7 @@
                 const newFiles = await Promise.all(files.map(async (file, index) => ({
                     id: `${batchId}-${index}-${Math.random().toString(36).slice(2, 8)}`,
                     name: file.name,
-                    type: /\.pdf$/i.test(file.name) ? 'pdf' : 'excel',
+                    type: getFileType(file.name),
                     category,
                     urgency,
                     desc: description,
@@ -716,6 +721,12 @@
         }
 
         // --- RENDER & FILTER ---
+        function getFileType(name) {
+            if (/\.pdf$/i.test(name)) return 'pdf';
+            if (/\.(xls|xlsx)$/i.test(name)) return 'excel';
+            return 'file';
+        }
+
         function filterFiles(category) {
             appState.currentFilter = category;
             document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -782,7 +793,7 @@
                     row.innerHTML = `
                         <td class="px-6 py-4">
                             <div class="flex items-center">
-                                ${file.type === 'pdf' ? '<div class="p-2 bg-red-100 rounded-lg text-red-600 mr-3"><i data-lucide="file-text" class="w-5 h-5"></i></div>' : '<div class="p-2 bg-emerald-100 rounded-lg text-emerald-600 mr-3"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>'}
+                                ${file.type === 'pdf' ? '<div class="p-2 bg-red-100 rounded-lg text-red-600 mr-3"><i data-lucide="file-text" class="w-5 h-5"></i></div>' : file.type === 'excel' ? '<div class="p-2 bg-emerald-100 rounded-lg text-emerald-600 mr-3"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>' : '<div class="p-2 bg-slate-100 rounded-lg text-slate-600 mr-3"><i data-lucide="file" class="w-5 h-5"></i></div>'}
                                 <div>
                                     <div class="font-medium text-slate-900 truncate w-40" title="${safeName}">${safeName}</div>
                                     <div class="text-xs text-slate-500">${file.size}</div>
@@ -846,17 +857,15 @@
 
             const pdfViewer = document.getElementById('pdfViewer');
             const excelViewer = document.getElementById('excelViewer');
-
-            if (file.type === 'pdf') {
-                excelViewer.classList.add('hidden');
-                excelViewer.classList.remove('flex');
-                pdfViewer.classList.remove('hidden');
-                pdfViewer.classList.add('flex');
-            } else {
-                pdfViewer.classList.add('hidden');
-                pdfViewer.classList.remove('flex');
-                excelViewer.classList.remove('hidden');
-                excelViewer.classList.add('flex');
+            const filePlaceholder = document.getElementById('filePlaceholder');
+            const activeViewer = file.type === 'pdf' ? pdfViewer : file.type === 'excel' ? excelViewer : filePlaceholder;
+            [pdfViewer, excelViewer, filePlaceholder].forEach(viewer => {
+                viewer.classList.toggle('hidden', viewer !== activeViewer);
+                viewer.classList.toggle('flex', viewer === activeViewer);
+            });
+            if (activeViewer === filePlaceholder) {
+                document.getElementById('filePlaceholderInfo').textContent = `${file.name} · ${file.size}`;
+                document.getElementById('filePlaceholderDownloadBtn').onclick = () => downloadFile(id);
             }
 
             const modal = document.getElementById('previewModal');
@@ -867,7 +876,7 @@
                 document.getElementById('previewModalContent').classList.remove('scale-95');
                 if (file.type === 'pdf') {
                     loadPdf(file.dataUrl, version);
-                } else {
+                } else if (file.type === 'excel') {
                     loadExcel(file.dataUrl);
                 }
                 markFileAsViewed(file);
